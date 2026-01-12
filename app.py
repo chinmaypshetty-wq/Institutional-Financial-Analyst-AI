@@ -19,21 +19,18 @@ div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. SIDEBAR CONFIGURATION (User Input)
+# 1. SIDEBAR CONFIGURATION
 # ==========================================
 with st.sidebar:
     st.title("🦅 Controls")
-    # THE MAGICAL TEXT BOX
     user_api_key = st.text_input("Enter Google API Key", type="password", help="Get a free key from Google AI Studio")
     st.markdown("---")
     st.info("System Status: Waiting for Key...")
 
-# STOP THE APP IF NO KEY IS ENTERED
 if not user_api_key:
     st.warning("⬅️ Please enter a Google API Key in the sidebar to start.")
-    st.stop() # Stops the code here until key is entered
+    st.stop()
 
-# Configure with the user's key
 try:
     genai.configure(api_key=user_api_key)
 except Exception as e:
@@ -58,7 +55,6 @@ def find_working_model():
     except:
         return "gemini-pro"
 
-# Detect model AFTER key is configured
 ACTIVE_MODEL_NAME = find_working_model()
 with st.sidebar:
     st.success(f"Connected: {ACTIVE_MODEL_NAME}")
@@ -88,18 +84,18 @@ def resolve_ticker(user_input):
         return user_input.upper()
 
 def get_company_news(ticker):
-    """Fetches news headlines with Rate Limit protection."""
+    """Fetches news with strict error handling."""
     try:
         clean_ticker = ticker.replace(".NS", "").replace(".AX", "")
-        # Add a timeout so it doesn't hang
+        # Timeout added to prevent hanging
         results = DDGS().news(keywords=f"{clean_ticker} stock news", max_results=5)
         if results:
             return "\n".join([f"- {r['title']} ({r['source']})" for r in results])
         return "No major recent news found."
-    except Exception as e:
-        # If rate limited, return a safe message instead of crashing
-        return f"News search skipped (Rate Limit). Financials still valid."
-        
+    except Exception:
+        # If rate limited or error, return a safe string so the app doesn't crash
+        return "News unavailable (Rate Limit). Focusing on Financials."
+
 # ==========================================
 # 4. DATA ENGINE (With Repair Kit)
 # ==========================================
@@ -112,45 +108,53 @@ def calculate_cagr(series, years):
         return round(((current / past)**(1/years) - 1) * 100, 2)
     except: return None
 
-def manual_metric_repair(stock, info, financials, balance_sheet):
-    """Repairs missing Yahoo Finance data."""
-    repaired = {}
-    try:
-        # 1. Repair ROE
-        if info.get('returnOnEquity') is None:
-            try:
-                net_income = financials.loc['Net Income'].iloc[0] if 'Net Income' in financials.index else None
-                equity = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else None
-                if net_income and equity: repaired['roe'] = round(net_income / equity, 4)
-                else: repaired['roe'] = "N/A"
-            except: repaired['roe'] = "N/A"
-        else: repaired['roe'] = info.get('returnOnEquity')
-
-        # 2. Repair Debt/Equity
-        if info.get('debtToEquity') is None:
-            try:
-                total_debt = balance_sheet.loc['Total Debt'].iloc[0] if 'Total Debt' in balance_sheet.index else None
-                equity = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else None
-                if total_debt and equity: repaired['debt_to_equity'] = round((total_debt / equity) * 100, 2)
-                else: repaired['debt_to_equity'] = "N/A"
-            except: repaired['debt_to_equity'] = "N/A"
-        else: repaired['debt_to_equity'] = info.get('debtToEquity')
-
-        # 3. Repair PEG
-        if info.get('pegRatio') is None:
-            pe = info.get('trailingPE')
-            repaired['peg_ratio'] = "N/A (Calc Failed)"
-            repaired['pe_ratio'] = round(pe, 2) if pe else "N/A"
-        else:
-            repaired['peg_ratio'] = info.get('pegRatio')
-            repaired['pe_ratio'] = info.get('trailingPE')
-
-    except Exception: pass
-    return repaired
-
+# CACHED DATA ENGINE
 @st.cache_data(ttl=3600) 
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
+    
+    # --- INTERNAL REPAIR KIT ---
+    def repair_metrics(info, financials, balance_sheet):
+        repaired = {}
+        try:
+            # 1. Repair ROE
+            if info.get('returnOnEquity') is None:
+                try:
+                    ni = financials.loc['Net Income'].iloc[0] if 'Net Income' in financials.index else financials.iloc[0,0]
+                    eq = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else balance_sheet.iloc[0,0]
+                    repaired['roe'] = round(ni / eq, 4) if eq != 0 else "N/A"
+                except: repaired['roe'] = "N/A"
+            else: repaired['roe'] = info.get('returnOnEquity')
+
+            # 2. Repair Debt/Equity
+            if info.get('debtToEquity') is None:
+                try:
+                    debt = balance_sheet.loc['Total Debt'].iloc[0] if 'Total Debt' in balance_sheet.index else 0
+                    eq = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else 1
+                    repaired['debt_to_equity'] = round((debt / eq) * 100, 2)
+                except: repaired['debt_to_equity'] = "N/A"
+            else: repaired['debt_to_equity'] = info.get('debtToEquity')
+
+            # 3. Repair PEG
+            if info.get('pegRatio') is None:
+                try:
+                    pe = info.get('trailingPE')
+                    if pe is None: 
+                        price = info.get('currentPrice', info.get('regularMarketPrice'))
+                        eps = financials.loc['Basic EPS'].iloc[0] if 'Basic EPS' in financials.index else None
+                        pe = price / eps if price and eps else None
+                    repaired['pe_ratio'] = round(pe, 2) if pe else "N/A"
+                    repaired['peg_ratio'] = "N/A (Calc Failed)"
+                except: 
+                    repaired['pe_ratio'] = "N/A"
+                    repaired['peg_ratio'] = "N/A"
+            else:
+                repaired['peg_ratio'] = info.get('pegRatio')
+                repaired['pe_ratio'] = info.get('trailingPE')
+        except: pass
+        return repaired
+
+    # --- MAIN LOGIC ---
     try:
         info = stock.info
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
@@ -163,7 +167,7 @@ def get_garp_data(ticker_symbol):
         # Growth Calculations
         growth_data = {}
         fin_T = financials.T 
-        fin_T.sort_index(ascending=False, inplace=True)
+        if not fin_T.empty: fin_T.sort_index(ascending=False, inplace=True)
         
         rev_col = next((c for c in fin_T.columns if 'Total Revenue' in c), None)
         eps_col = next((c for c in fin_T.columns if 'Basic EPS' in c or 'Net Income' in c), None)
@@ -176,7 +180,7 @@ def get_garp_data(ticker_symbol):
         earnings_quality_msg = "Unknown"
         try:
             cf_T = cashflow.T
-            cf_T.sort_index(ascending=False, inplace=True)
+            if not cf_T.empty: cf_T.sort_index(ascending=False, inplace=True)
             ocf_col = next((c for c in cf_T.columns if 'Operating' in c and 'Cash' in c), None)
             ni_col = next((c for c in fin_T.columns if 'Net Income' in c), None)
             
@@ -195,7 +199,16 @@ def get_garp_data(ticker_symbol):
                 trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma_200 else "Bearish (Below 200DMA) 🔴"
         except: pass
 
-        repaired_metrics = manual_metric_repair(stock, info, financials, balance_sheet)
+        # Repair Metrics
+        repaired = repair_metrics(info, financials, balance_sheet)
+        
+        # NEWS CHECK (FAIL-SAFE)
+        # We assume news might fail, so we default to a message if it does
+        news_text = "News check failed."
+        try:
+            news_text = get_company_news(ticker_symbol)
+        except:
+            news_text = "News unavailable (Rate Limit)."
 
         return {
             "ticker": ticker_symbol.upper(),
@@ -203,13 +216,13 @@ def get_garp_data(ticker_symbol):
             "price": current_price,
             "currency": info.get('currency', 'USD'),
             "market_cap_millions": round(info.get('marketCap', 0) / 1_000_000, 2),
-            "peg_ratio": repaired_metrics.get('peg_ratio', "N/A"),
-            "pe_ratio": repaired_metrics.get('pe_ratio', "N/A"),
-            "debt_to_equity": repaired_metrics.get('debt_to_equity', "N/A"),
-            "roe": repaired_metrics.get('roe', "N/A"),
+            "peg_ratio": repaired.get('peg_ratio', "N/A"),
+            "pe_ratio": repaired.get('pe_ratio', "N/A"),
+            "debt_to_equity": repaired.get('debt_to_equity', "N/A"),
+            "roe": repaired.get('roe', "N/A"),
             "earnings_quality": earnings_quality_msg,
             "technical_trend": trend_msg,
-            "recent_news": get_company_news(ticker_symbol),
+            "recent_news": news_text,
             **growth_data
         }
     except Exception as e:
