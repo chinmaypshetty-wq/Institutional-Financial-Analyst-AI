@@ -5,6 +5,7 @@ import pandas as pd
 import warnings
 import re
 import time
+import requests
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -45,7 +46,6 @@ def find_working_model():
     try:
         all_models = list(genai.list_models())
         valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
-        
         for m in valid_models:
             if 'gemini-1.5-flash' in m: return m
         for m in valid_models:
@@ -83,12 +83,20 @@ def resolve_ticker(user_input):
         return user_input.upper()
 
 # ==========================================
-# 4. DATA ENGINE (SURVIVAL MODE: ANTI-BLOCK)
+# 4. DATA ENGINE (STEALTH MODE)
 # ==========================================
+def get_yahoo_session():
+    """Creates a browser-like session to bypass blocks."""
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    })
+    return session
+
 def get_yahoo_news(ticker):
-    """Fetches safe, non-blocking news from Yahoo."""
     try:
-        stock = yf.Ticker(ticker)
+        # Use stealth session for news too
+        stock = yf.Ticker(ticker, session=get_yahoo_session())
         news = stock.news
         if not news: return "No recent news found."
         headlines = []
@@ -110,27 +118,29 @@ def calculate_cagr(series, years):
 
 @st.cache_data(ttl=3600) 
 def get_garp_data(ticker_symbol):
-    stock = yf.Ticker(ticker_symbol)
+    # USE THE STEALTH SESSION
+    session = get_yahoo_session()
+    stock = yf.Ticker(ticker_symbol, session=session)
     
     # --- PHASE 1: SURVIVAL FETCHING ---
-    # We try standard info. If blocked (Rate Limit), we fallback to fast_info.
     try:
+        # Standard Info
         info = stock.info
         current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
         currency = info.get('currency', 'USD')
         sector = info.get('sector', 'Unknown')
         mcap = info.get('marketCap', 0)
     except:
-        # FALLBACK: Use fast_info (Harder to block)
+        # FALLBACK: Fast Info (Different Endpoint)
         try:
             fast = stock.fast_info
             current_price = fast.last_price
             currency = fast.currency
             mcap = fast.market_cap
             sector = "Unknown (Rate Limited)"
-            info = {} # Empty dict to force repair kit
+            info = {} 
         except:
-            return {"error": "Yahoo Finance blocked. Try again later."}
+            return {"error": "Yahoo Finance blocked this IP. Please try again in 1 hour."}
 
     if current_price == 0: return {"error": f"Ticker '{ticker_symbol}' not found."}
 
