@@ -25,7 +25,7 @@ div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 # 1. SIDEBAR: API KEY & CONTROLS
 # ==========================================
 with st.sidebar:
-    st.title("🦅 Controls")
+    st.title(" Controls")
     user_api_key = st.text_input("Enter Google API Key", type="password", help="Get a free key from Google AI Studio")
     st.markdown("---")
     
