@@ -40,103 +40,119 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. CORE UTILITY: DYNAMIC MODEL FINDER (The 404 Fix)
+# 2. CORE UTILITY: DYNAMIC MODEL FINDER
 # ==========================================
 @st.cache_resource
 def get_valid_model_name():
-    """
-    Asks Google which models are available to this API key 
-    instead of guessing. Prevents 404 errors.
-    """
     try:
         available_models = list(genai.list_models())
-        # Filter for models that generate text
         text_models = [m.name for m in available_models if 'generateContent' in m.supported_generation_methods]
-        
-        # Priority Selection
         for m in text_models:
-            if 'gemini-1.5-flash' in m: return m  # Fast & Cheap
+            if 'gemini-1.5-flash' in m: return m
         for m in text_models:
-            if 'gemini-1.5-pro' in m: return m    # Smart
-        for m in text_models:
-            if 'gemini-pro' in m: return m        # Classic
-            
+            if 'gemini-1.5-pro' in m: return m
         return text_models[0] if text_models else "models/gemini-pro"
-    except Exception as e:
-        return "models/gemini-pro" # Ultimate fallback
+    except:
+        return "models/gemini-pro"
 
 ACTIVE_MODEL_NAME = get_valid_model_name()
 with st.sidebar:
     st.caption(f"🤖 Model: {ACTIVE_MODEL_NAME}")
 
 # ==========================================
-# 3. ENGINE: GOOGLE NEWS RSS (Reliable)
+# 3. ENGINE: GOOGLE NEWS RSS
 # ==========================================
 def get_google_news_rss(query):
-    """Fetches news from Google News RSS. Never blocked."""
     try:
         clean_query = query.replace(".NS", " stock").replace(".AX", " stock")
         url = f"https://news.google.com/rss/search?q={clean_query}&hl=en-US&gl=US&ceid=US:en"
-        
         response = requests.get(url, timeout=5)
         root = ET.fromstring(response.content)
-        
         headlines = []
         for item in root.findall('./channel/item')[:5]:
             title = item.find('title').text
             pubDate = item.find('pubDate').text
             headlines.append(f"- {title} ({pubDate})")
-            
-        return "\n".join(headlines) if headlines else "No news found via RSS."
+        return "\n".join(headlines) if headlines else "No news found."
     except:
         return "News unavailable."
 
 # ==========================================
-# 4. ENGINE: TICKER RESOLVER (Robust)
+# 4. ENGINE: TICKER RESOLVER (HARDCODED + AI)
 # ==========================================
 def check_ticker_live(ticker):
     """Returns True if ticker exists on Yahoo, False otherwise."""
     try:
-        # fast_info is the quickest way to check existence
+        # Check price. If price exists, ticker is valid.
         price = yf.Ticker(ticker).fast_info.last_price
         return price is not None and price > 0
     except:
         return False
 
+# HARDCODED DICTIONARY TO PREVENT "APPLE" -> "APPLE" ERRORS
+COMMON_MAPPING = {
+    "APPLE": "AAPL",
+    "NETFLIX": "NFLX",
+    "GOOGLE": "GOOGL",
+    "AMAZON": "AMZN",
+    "TESLA": "TSLA",
+    "MICROSOFT": "MSFT",
+    "META": "META",
+    "NVIDIA": "NVDA",
+    "GENERAL MOTORS": "GM",
+    "FORD": "F",
+    "TATA STEEL": "TATASTEEL.NS",
+    "RELIANCE": "RELIANCE.NS",
+    "HDFC": "HDFCBANK.NS",
+    "INFOSYS": "INFY.NS",
+    "COMMBANK": "CBA.AX",
+    "ANZ": "ANZ.AX",
+    "NAB": "NAB.AX",
+    "BHP": "BHP.AX",
+    "RIO": "RIO.AX",
+    "TELSTRA": "TLS.AX",
+    "WOOLWORTHS": "WOW.AX",
+    "NALCO": "NATIONALUM.NS",
+    "NATIONAL ALUMINIUM": "NATIONALUM.NS"
+}
+
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
     """
-    1. Check if user input is already a valid ticker.
-    2. If not, ask AI to resolve it.
-    3. Validate AI's response.
+    1. Check Hardcoded Map (Instant Fix).
+    2. Check Direct Input (User typed 'TSLA').
+    3. Ask AI.
+    4. Validate result.
     """
     clean_input = user_input.strip().upper()
     
-    # 1. Direct Check (Did they type "EAX"?)
+    # 1. HARDCODED MAP CHECK
+    if clean_input in COMMON_MAPPING:
+        return COMMON_MAPPING[clean_input]
+
+    # 2. DIRECT CHECK
     if check_ticker_live(clean_input): return clean_input
     if check_ticker_live(clean_input + ".AX"): return clean_input + ".AX"
     if check_ticker_live(clean_input + ".NS"): return clean_input + ".NS"
 
-    # 2. AI Resolution (Did they type "Netflix"?)
+    # 3. AI ATTEMPT
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
         prompt = (
             f"What is the exact Yahoo Finance ticker for '{user_input}'? "
-            "Examples: 'Netflix'->NFLX, 'Tata Steel'->TATASTEEL.NS, 'Energy Action'->EAX.AX, 'General Motors'->GM. "
+            "Examples: 'Netflix'->NFLX, 'Tata Steel'->TATASTEEL.NS, 'Energy Action'->EAX.AX. "
             "Return ONLY the ticker symbol. No text."
         )
         response = model.generate_content(prompt)
         ai_ticker = response.text.strip().upper().replace(" ", "").replace("`", "")
         
         if check_ticker_live(ai_ticker): return ai_ticker
-        
-        # AI often forgets suffixes, so we try adding them
         if check_ticker_live(ai_ticker + ".AX"): return ai_ticker + ".AX"
         if check_ticker_live(ai_ticker + ".NS"): return ai_ticker + ".NS"
-    except:
-        pass
+    except: pass
 
-    return clean_input # Return original if all else fails
+    # If all fails, return input but trigger error downstream
+    return clean_input
 
 # ==========================================
 # 5. DATA ENGINE: STEALTH MODE
@@ -165,7 +181,7 @@ def get_garp_data(ticker_symbol):
         mcap = stock.fast_info.market_cap
         currency = stock.fast_info.currency
     except:
-        return {"error": f"Yahoo Finance blocked or Ticker '{ticker_symbol}' invalid."}
+        return {"error": f"Could not find live data for '{ticker_symbol}'. Is the ticker correct?"}
 
     # 2. FINANCIALS
     try:
@@ -175,7 +191,7 @@ def get_garp_data(ticker_symbol):
         fin_T = financials.T if not financials.empty else pd.DataFrame()
         if not fin_T.empty: fin_T.sort_index(ascending=False, inplace=True)
     except:
-        return {"error": "Critical: Could not load financial statements."}
+        return {"error": "Financial statements unavailable."}
 
     # 3. INFO (Lazy Load)
     info = {}
@@ -328,10 +344,11 @@ if submit_btn:
         with st.spinner(f"🔍 Resolving ticker for '{user_input}'..."):
             resolved_ticker = resolve_ticker(user_input)
             
-            # Final check before passing to engine
+            # Validation Step
             if not check_ticker_live(resolved_ticker):
-                st.error(f"❌ Could not find valid data for '{resolved_ticker}'.")
-                st.caption("Try adding the country suffix manually (e.g. .AX for Australia, .NS for India).")
+                st.error(f"❌ Could not find data for '{resolved_ticker}'.")
+                st.info(f"The AI could not resolve '{user_input}' to a valid symbol.")
+                st.caption("Please try searching for the EXACT ticker symbol (e.g., NFLX, AAPL, TATASTEEL.NS).")
             else:
                 st.success(f"✅ Analysis Target: **{resolved_ticker}**")
         
