@@ -4,20 +4,11 @@ import yfinance as yf
 import pandas as pd
 import warnings
 import re
+import time
 from duckduckgo_search import DDGS
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
-
-# ==========================================
-# 1. CONFIGURATION
-# ==========================================
-MY_API_KEY = st.secrets["GOOGLE_API_KEY"]
-
-try:
-    genai.configure(api_key=MY_API_KEY)
-except Exception as e:
-    st.error(f"API Key Error: {e}")
 
 st.set_page_config(page_title="Institutional AI Analyst", page_icon="🦅", layout="wide")
 
@@ -26,6 +17,28 @@ st.markdown("""
 div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 </style>
 """, unsafe_allow_html=True)
+
+# ==========================================
+# 1. SIDEBAR CONFIGURATION (User Input)
+# ==========================================
+with st.sidebar:
+    st.title("🦅 Controls")
+    # THE MAGICAL TEXT BOX
+    user_api_key = st.text_input("Enter Google API Key", type="password", help="Get a free key from Google AI Studio")
+    st.markdown("---")
+    st.info("System Status: Waiting for Key...")
+
+# STOP THE APP IF NO KEY IS ENTERED
+if not user_api_key:
+    st.warning("⬅️ Please enter a Google API Key in the sidebar to start.")
+    st.stop() # Stops the code here until key is entered
+
+# Configure with the user's key
+try:
+    genai.configure(api_key=user_api_key)
+except Exception as e:
+    st.error(f"Invalid API Key: {e}")
+    st.stop()
 
 # ==========================================
 # 2. CORE UTILITY: FIND WORKING MODEL
@@ -45,7 +58,10 @@ def find_working_model():
     except:
         return "gemini-pro"
 
+# Detect model AFTER key is configured
 ACTIVE_MODEL_NAME = find_working_model()
+with st.sidebar:
+    st.success(f"Connected: {ACTIVE_MODEL_NAME}")
 
 # ==========================================
 # 3. HELPER: SMART RESOLVER
@@ -95,87 +111,39 @@ def calculate_cagr(series, years):
     except: return None
 
 def manual_metric_repair(stock, info, financials, balance_sheet):
-    """
-    If Yahoo 'info' is missing data, try to calculate it manually 
-    from the Balance Sheet and Income Statement.
-    """
+    """Repairs missing Yahoo Finance data."""
     repaired = {}
-    
     try:
-        # 1. Repair ROE (Net Income / Total Equity)
+        # 1. Repair ROE
         if info.get('returnOnEquity') is None:
             try:
-                # Try finding Net Income
-                net_income = None
-                if 'Net Income' in financials.index:
-                    net_income = financials.loc['Net Income'].iloc[0]
-                elif 'Net Income Common Stockholders' in financials.index:
-                    net_income = financials.loc['Net Income Common Stockholders'].iloc[0]
-                
-                # Try finding Equity
-                equity = None
-                if 'Stockholders Equity' in balance_sheet.index:
-                    equity = balance_sheet.loc['Stockholders Equity'].iloc[0]
-                elif 'Total Equity Gross Minority Interest' in balance_sheet.index:
-                    equity = balance_sheet.loc['Total Equity Gross Minority Interest'].iloc[0]
-
-                if net_income and equity and equity != 0:
-                    repaired['roe'] = round(net_income / equity, 4)
-                else: 
-                    repaired['roe'] = "N/A"
+                net_income = financials.loc['Net Income'].iloc[0] if 'Net Income' in financials.index else None
+                equity = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else None
+                if net_income and equity: repaired['roe'] = round(net_income / equity, 4)
+                else: repaired['roe'] = "N/A"
             except: repaired['roe'] = "N/A"
-        else:
-            repaired['roe'] = info.get('returnOnEquity')
+        else: repaired['roe'] = info.get('returnOnEquity')
 
-        # 2. Repair Debt/Equity (Total Debt / Total Equity)
+        # 2. Repair Debt/Equity
         if info.get('debtToEquity') is None:
             try:
-                total_debt = None
-                if 'Total Debt' in balance_sheet.index:
-                    total_debt = balance_sheet.loc['Total Debt'].iloc[0]
-                
-                # Reuse equity from above or fetch again
-                equity = None
-                if 'Stockholders Equity' in balance_sheet.index:
-                    equity = balance_sheet.loc['Stockholders Equity'].iloc[0]
-
-                if total_debt is not None and equity and equity != 0:
-                    # Yahoo expects this as a percentage (e.g., 150 for 1.5)
-                    repaired['debt_to_equity'] = round((total_debt / equity) * 100, 2)
-                else: 
-                    repaired['debt_to_equity'] = "N/A"
+                total_debt = balance_sheet.loc['Total Debt'].iloc[0] if 'Total Debt' in balance_sheet.index else None
+                equity = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else None
+                if total_debt and equity: repaired['debt_to_equity'] = round((total_debt / equity) * 100, 2)
+                else: repaired['debt_to_equity'] = "N/A"
             except: repaired['debt_to_equity'] = "N/A"
-        else:
-            repaired['debt_to_equity'] = info.get('debtToEquity')
+        else: repaired['debt_to_equity'] = info.get('debtToEquity')
 
-        # 3. Repair PEG (PE Ratio / Earnings Growth)
+        # 3. Repair PEG
         if info.get('pegRatio') is None:
-            # We need PE first
             pe = info.get('trailingPE')
-            if pe is None:
-                 # Try to calc PE: Price / EPS
-                 try:
-                     price = info.get('currentPrice', info.get('regularMarketPrice'))
-                     eps = financials.loc['Basic EPS'].iloc[0] if 'Basic EPS' in financials.index else None
-                     if price and eps:
-                        pe = price / eps
-                 except: pe = None
-            
-            repaired['peg_ratio'] = "N/A (Manual Calc Failed)"
-            if pe:
-                 repaired['pe_ratio'] = round(pe, 2)
-                 # We simply return the PE here if PEG is missing, 
-                 # letting the AI analyze it in context.
-            else:
-                 repaired['pe_ratio'] = "N/A"
-
+            repaired['peg_ratio'] = "N/A (Calc Failed)"
+            repaired['pe_ratio'] = round(pe, 2) if pe else "N/A"
         else:
             repaired['peg_ratio'] = info.get('pegRatio')
             repaired['pe_ratio'] = info.get('trailingPE')
 
-    except Exception as e:
-        print(f"Repair failed: {e}")
-        
+    except Exception: pass
     return repaired
 
 @st.cache_data(ttl=3600) 
@@ -190,13 +158,8 @@ def get_garp_data(ticker_symbol):
         cashflow = stock.cashflow
         balance_sheet = stock.balance_sheet
         
-        # Sort DataFrames (Ensure most recent is first/column 0)
-        # yfinance usually returns recent first, but we check to be safe
-        # Note: yfinance dataframes usually have dates as columns. 
-        
         # Growth Calculations
         growth_data = {}
-        # We need the Transpose (.T) for calculating CAGR easily across rows
         fin_T = financials.T 
         fin_T.sort_index(ascending=False, inplace=True)
         
@@ -210,20 +173,15 @@ def get_garp_data(ticker_symbol):
         # Quality Check
         earnings_quality_msg = "Unknown"
         try:
-            # Need correct orientation
             cf_T = cashflow.T
             cf_T.sort_index(ascending=False, inplace=True)
-            
             ocf_col = next((c for c in cf_T.columns if 'Operating' in c and 'Cash' in c), None)
             ni_col = next((c for c in fin_T.columns if 'Net Income' in c), None)
             
             if ocf_col and ni_col and not cf_T.empty and not fin_T.empty:
                 latest_ocf = cf_T.iloc[0][ocf_col]
                 latest_ni = fin_T.iloc[0][ni_col]
-                if latest_ocf > latest_ni:
-                    earnings_quality_msg = "High (Cash > Profit)"
-                else:
-                    earnings_quality_msg = "Low (Profit > Cash) ⚠️"
+                earnings_quality_msg = "High (Cash > Profit)" if latest_ocf > latest_ni else "Low (Profit > Cash) ⚠️"
         except: pass
 
         # Trend Check
@@ -235,7 +193,6 @@ def get_garp_data(ticker_symbol):
                 trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma_200 else "Bearish (Below 200DMA) 🔴"
         except: pass
 
-        # RUN THE REPAIR KIT (Pass untransposed DFs for easier key lookups)
         repaired_metrics = manual_metric_repair(stock, info, financials, balance_sheet)
 
         return {
@@ -244,13 +201,10 @@ def get_garp_data(ticker_symbol):
             "price": current_price,
             "currency": info.get('currency', 'USD'),
             "market_cap_millions": round(info.get('marketCap', 0) / 1_000_000, 2),
-            
-            # Use Repaired Metrics
             "peg_ratio": repaired_metrics.get('peg_ratio', "N/A"),
             "pe_ratio": repaired_metrics.get('pe_ratio', "N/A"),
             "debt_to_equity": repaired_metrics.get('debt_to_equity', "N/A"),
             "roe": repaired_metrics.get('roe', "N/A"),
-            
             "earnings_quality": earnings_quality_msg,
             "technical_trend": trend_msg,
             "recent_news": get_company_news(ticker_symbol),
@@ -301,10 +255,6 @@ Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted ret
 # ==========================================
 st.title("Institutional Financial Analyst AI")
 
-with st.sidebar:
-    st.success(f"✅ AI Connected: {ACTIVE_MODEL_NAME}")
-    st.info("System Ready")
-
 with st.form(key='analysis_form'):
     col1, col2 = st.columns([3, 1])
     with col1:
@@ -318,7 +268,6 @@ if submit_btn:
     if not user_input:
         st.warning("Please enter a company name or ticker.")
     else:
-        # Resolve Ticker
         resolved_ticker = resolve_ticker(user_input)
         
         with st.spinner(f"📡 Analyzing {resolved_ticker} (Financials + News)..."):
@@ -327,7 +276,6 @@ if submit_btn:
             if "error" in data:
                 st.error(f"❌ {data['error']} (Tried searching for: {resolved_ticker})")
             else:
-                # Retry logic to handle "429 Too Many Requests"
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
@@ -348,13 +296,12 @@ if submit_btn:
                         with st.expander("📰 Read Scanned Headlines"):
                             st.write(data.get('recent_news'))
                         
-                        break # Success, exit retry loop
+                        break 
                         
                     except Exception as e:
-                        if "429" in str(e): # Quota limit error
+                        if "429" in str(e):
                             if attempt < max_retries - 1:
                                 st.warning(f"⚠️ Quota limit hit. Retrying in 5 seconds... (Attempt {attempt+1}/{max_retries})")
-                                import time
                                 time.sleep(5)
                             else:
                                 st.error("❌ Daily Quota Exceeded. Please try again tomorrow or switch to a paid API key.")
