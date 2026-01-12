@@ -254,14 +254,28 @@ def get_institutional_data(ticker_symbol):
     except:
         kpis['quality'] = "Unknown"
 
-    # 5. CHART DATA (Altair)
-    chart_data = None
-    try:
-        hist = stock.history(period="2y")
-        if not hist.empty:
-            hist = hist.reset_index()
-            chart_data = hist[['Date', 'Close', 'Volume']]
-    except: pass
+    # 5. CHART DATA
+                        chart_data = None
+                        try:
+                            hist = stock.history(period="2y")
+                            if not hist.empty:
+                                hist = hist.reset_index()
+                                chart_data = hist[['Date', 'Close', 'Volume']]
+                                
+                                # Create Chart
+                                base = alt.Chart(chart_data).encode(x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title="Date")))
+                                
+                                # Line with Dynamic Currency Label
+                                line = base.mark_line(color='#2ecc71').encode(
+                                    y=alt.Y('Close:Q', 
+                                            axis=alt.Axis(title=f"Price ({currency})", format="$.0f"),
+                                            scale=alt.Scale(zero=False)),
+                                    tooltip=['Date', alt.Tooltip('Close', format=",.2f"), 'Volume']
+                                )
+                                
+                                # Render
+                                st.altair_chart(line, use_container_width=True)
+                        except: pass
 
     # Trend
     try:
