@@ -60,12 +60,14 @@ with st.sidebar:
     st.caption(f"🤖 Model: {ACTIVE_MODEL_NAME}")
 
 # ==========================================
-# 3. ENGINE: GOOGLE NEWS RSS
+# 3. ENGINE: GOOGLE NEWS RSS (Targeted)
 # ==========================================
 def get_google_news_rss(query):
     try:
-        clean_query = query.replace(".NS", " stock").replace(".AX", " stock")
+        # We keep the suffix (e.g. .NS) to ensure we get news for the RIGHT country
+        clean_query = f"{query} stock news"
         url = f"https://news.google.com/rss/search?q={clean_query}&hl=en-US&gl=US&ceid=US:en"
+        
         response = requests.get(url, timeout=5)
         root = ET.fromstring(response.content)
         headlines = []
@@ -78,64 +80,53 @@ def get_google_news_rss(query):
         return "News unavailable."
 
 # ==========================================
-# 4. ENGINE: TICKER RESOLVER (HARDCODED + AI)
+# 4. ENGINE: TICKER RESOLVER (HARDCODED MAP)
 # ==========================================
 def check_ticker_live(ticker):
     """Returns True if ticker exists on Yahoo, False otherwise."""
     try:
-        # Check price. If price exists, ticker is valid.
         price = yf.Ticker(ticker).fast_info.last_price
         return price is not None and price > 0
     except:
         return False
 
-# HARDCODED DICTIONARY TO PREVENT "APPLE" -> "APPLE" ERRORS
+# THE "INSTANT FIX" DICTIONARY
 COMMON_MAPPING = {
-    "APPLE": "AAPL",
-    "NETFLIX": "NFLX",
-    "GOOGLE": "GOOGL",
-    "AMAZON": "AMZN",
-    "TESLA": "TSLA",
-    "MICROSOFT": "MSFT",
-    "META": "META",
-    "NVIDIA": "NVDA",
-    "GENERAL MOTORS": "GM",
-    "FORD": "F",
-    "TATA STEEL": "TATASTEEL.NS",
-    "RELIANCE": "RELIANCE.NS",
-    "HDFC": "HDFCBANK.NS",
-    "INFOSYS": "INFY.NS",
-    "COMMBANK": "CBA.AX",
-    "ANZ": "ANZ.AX",
-    "NAB": "NAB.AX",
-    "BHP": "BHP.AX",
-    "RIO": "RIO.AX",
-    "TELSTRA": "TLS.AX",
-    "WOOLWORTHS": "WOW.AX",
-    "NALCO": "NATIONALUM.NS",
-    "NATIONAL ALUMINIUM": "NATIONALUM.NS"
+    # USA
+    "APPLE": "AAPL", "NETFLIX": "NFLX", "GOOGLE": "GOOGL", "AMAZON": "AMZN",
+    "TESLA": "TSLA", "MICROSOFT": "MSFT", "META": "META", "NVIDIA": "NVDA",
+    "GENERAL MOTORS": "GM", "FORD": "F",
+    
+    # INDIA (Correcting Common Mistakes)
+    "LIC": "LICI.NS", "LIC.NS": "LICI.NS", "LICI": "LICI.NS", # Fixes LIC issue
+    "TATA STEEL": "TATASTEEL.NS", "RELIANCE": "RELIANCE.NS",
+    "HDFC": "HDFCBANK.NS", "INFOSYS": "INFY.NS",
+    "NALCO": "NATIONALUM.NS", "NATIONAL ALUMINIUM": "NATIONALUM.NS",
+    "PG FOILS": "PGFOLS.NS", "PGFOILS": "PGFOLS.NS",
+    
+    # AUSTRALIA
+    "GOLDEN DEEPS": "GED.AX", "GOLDEN DEEPS LTD": "GED.AX",
+    "ENERGY ACTION": "EAX.AX", "EAX": "EAX.AX",
+    "COMMBANK": "CBA.AX", "CBA": "CBA.AX",
+    "ANZ": "ANZ.AX", "NAB": "NAB.AX", "BHP": "BHP.AX",
+    "RIO": "RIO.AX", "TELSTRA": "TLS.AX", "WOOLWORTHS": "WOW.AX"
 }
 
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
-    """
-    1. Check Hardcoded Map (Instant Fix).
-    2. Check Direct Input (User typed 'TSLA').
-    3. Ask AI.
-    4. Validate result.
-    """
     clean_input = user_input.strip().upper()
     
-    # 1. HARDCODED MAP CHECK
+    # 1. HARDCODED MAP (Fastest)
     if clean_input in COMMON_MAPPING:
         return COMMON_MAPPING[clean_input]
 
-    # 2. DIRECT CHECK
+    # 2. DIRECT CHECK (If user typed 'TSLA' or 'LICI.NS')
     if check_ticker_live(clean_input): return clean_input
+    # Try adding country suffixes automatically
     if check_ticker_live(clean_input + ".AX"): return clean_input + ".AX"
     if check_ticker_live(clean_input + ".NS"): return clean_input + ".NS"
 
-    # 3. AI ATTEMPT
+    # 3. AI GUESS (Fallback)
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
         prompt = (
@@ -151,7 +142,6 @@ def resolve_ticker(user_input):
         if check_ticker_live(ai_ticker + ".NS"): return ai_ticker + ".NS"
     except: pass
 
-    # If all fails, return input but trigger error downstream
     return clean_input
 
 # ==========================================
@@ -331,7 +321,7 @@ st.title("Institutional Financial Analyst AI")
 with st.form(key='analysis_form'):
     col1, col2 = st.columns([3, 1])
     with col1:
-        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Netflix, Tata Steel").strip()
+        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Netflix, LIC, Golden Deeps").strip()
     with col2:
         st.write("")
         st.write("")
@@ -348,7 +338,7 @@ if submit_btn:
             if not check_ticker_live(resolved_ticker):
                 st.error(f"❌ Could not find data for '{resolved_ticker}'.")
                 st.info(f"The AI could not resolve '{user_input}' to a valid symbol.")
-                st.caption("Please try searching for the EXACT ticker symbol (e.g., NFLX, AAPL, TATASTEEL.NS).")
+                st.caption("Please try searching for the EXACT ticker symbol (e.g., NFLX, LICI.NS, GED.AX).")
             else:
                 st.success(f"✅ Analysis Target: **{resolved_ticker}**")
         
