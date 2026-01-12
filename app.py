@@ -5,7 +5,6 @@ import pandas as pd
 import warnings
 import re
 import time
-from duckduckgo_search import DDGS
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -19,15 +18,16 @@ div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. SIDEBAR CONFIGURATION
+# 1. SIDEBAR CONFIGURATION (Public Safe)
 # ==========================================
 with st.sidebar:
     st.title("🦅 Controls")
+    # Allows recruiters/users to input their own key safely
     user_api_key = st.text_input("Enter Google API Key", type="password", help="Get a free key from Google AI Studio")
     st.markdown("---")
-    st.info("System Status: Waiting for Key...")
-
+    
 if not user_api_key:
+    st.info("System Status: Waiting for Key...")
     st.warning("⬅️ Please enter a Google API Key in the sidebar to start.")
     st.stop()
 
@@ -38,7 +38,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. CORE UTILITY: FIND WORKING MODEL
+# 2. CORE UTILITY: MODEL AUTO-DETECT
 # ==========================================
 @st.cache_resource
 def find_working_model():
@@ -47,6 +47,7 @@ def find_working_model():
         all_models = list(genai.list_models())
         valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
         
+        # Priority: Flash (Fast) -> Pro (Smart) -> Fallback
         for m in valid_models:
             if 'gemini-1.5-flash' in m: return m
         for m in valid_models:
@@ -60,11 +61,11 @@ with st.sidebar:
     st.success(f"Connected: {ACTIVE_MODEL_NAME}")
 
 # ==========================================
-# 3. HELPER: SMART RESOLVER
+# 3. HELPER: SMART TICKER RESOLVER
 # ==========================================
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
-    """Aggressively converts names to Yahoo Tickers."""
+    """Uses AI to convert 'Tata Steel' -> 'TATASTEEL.NS'."""
     if "." in user_input and len(user_input) < 12: return user_input.upper()
 
     try:
@@ -83,23 +84,28 @@ def resolve_ticker(user_input):
     except:
         return user_input.upper()
 
-def get_company_news(ticker):
-    """Fetches news with strict error handling."""
+# ==========================================
+# 4. DATA ENGINE (Robust & Complete)
+# ==========================================
+def get_yahoo_news(ticker):
+    """Fetches safe, non-blocking news from Yahoo."""
     try:
-        clean_ticker = ticker.replace(".NS", "").replace(".AX", "")
-        # Timeout added to prevent hanging
-        results = DDGS().news(keywords=f"{clean_ticker} stock news", max_results=5)
-        if results:
-            return "\n".join([f"- {r['title']} ({r['source']})" for r in results])
-        return "No major recent news found."
-    except Exception:
-        # If rate limited or error, return a safe string so the app doesn't crash
-        return "News unavailable (Rate Limit). Focusing on Financials."
+        stock = yf.Ticker(ticker)
+        news = stock.news
+        if not news: return "No recent news found."
+        
+        headlines = []
+        for n in news[:5]: # Top 5 stories
+            title = n.get('title', 'No Title')
+            publisher = n.get('publisher', 'Unknown')
+            headlines.append(f"- {title} ({publisher})")
+            
+        return "\n".join(headlines)
+    except:
+        return "News unavailable."
 
-# ==========================================
-# 4. DATA ENGINE (With Repair Kit)
-# ==========================================
 def calculate_cagr(series, years):
+    """Calculates Compound Annual Growth Rate."""
     try:
         if len(series) < years + 1: return None
         current, past = series.iloc[0], series.iloc[years]
@@ -108,12 +114,11 @@ def calculate_cagr(series, years):
         return round(((current / past)**(1/years) - 1) * 100, 2)
     except: return None
 
-# CACHED DATA ENGINE
 @st.cache_data(ttl=3600) 
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # --- INTERNAL REPAIR KIT ---
+    # --- INTERNAL REPAIR KIT (Fixes N/A values) ---
     def repair_metrics(info, financials, balance_sheet):
         repaired = {}
         try:
@@ -164,7 +169,7 @@ def get_garp_data(ticker_symbol):
         cashflow = stock.cashflow
         balance_sheet = stock.balance_sheet
         
-        # Growth Calculations
+        # Growth Loop (3/5/7 Years)
         growth_data = {}
         fin_T = financials.T 
         if not fin_T.empty: fin_T.sort_index(ascending=False, inplace=True)
@@ -176,7 +181,7 @@ def get_garp_data(ticker_symbol):
             growth_data[f'sales_cagr_{yr}y'] = calculate_cagr(fin_T[rev_col], yr) if rev_col else "N/A"
             growth_data[f'eps_cagr_{yr}y'] = calculate_cagr(fin_T[eps_col], yr) if eps_col else "N/A"
 
-        # Quality Check
+        # Quality Check (Cash vs Profit)
         earnings_quality_msg = "Unknown"
         try:
             cf_T = cashflow.T
@@ -190,7 +195,7 @@ def get_garp_data(ticker_symbol):
                 earnings_quality_msg = "High (Cash > Profit)" if latest_ocf > latest_ni else "Low (Profit > Cash) ⚠️"
         except: pass
 
-        # Trend Check
+        # Trend Check (200DMA)
         trend_msg = "Unknown"
         try:
             hist = stock.history(period="1y")
@@ -199,16 +204,10 @@ def get_garp_data(ticker_symbol):
                 trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma_200 else "Bearish (Below 200DMA) 🔴"
         except: pass
 
-        # Repair Metrics
         repaired = repair_metrics(info, financials, balance_sheet)
         
-        # NEWS CHECK (FAIL-SAFE)
-        # We assume news might fail, so we default to a message if it does
-        news_text = "News check failed."
-        try:
-            news_text = get_company_news(ticker_symbol)
-        except:
-            news_text = "News unavailable (Rate Limit)."
+        # USE YAHOO NEWS (Safe)
+        news_text = get_yahoo_news(ticker_symbol)
 
         return {
             "ticker": ticker_symbol.upper(),
@@ -229,19 +228,24 @@ def get_garp_data(ticker_symbol):
         return {"error": f"Data Pipeline Error: {e}"}
 
 # ==========================================
-# 5. SYSTEM PROMPT
+# 5. SYSTEM PROMPT (Strict Criteria)
 # ==========================================
 sys_instruction = """
 ### ROLE
 Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted returns**.
 
-### STRATEGY (GARP + QUALITY + MOMENTUM + NEWS)
-1. Growth: 3Y/5Y/7Y CAGR > 20% (EPS) & > 15% (Sales).
-2. Valuation: PEG < 1.0 (Strict) or < 1.5 (if ROE > 20%).
-3. Health: Debt/Equity < 1.0 (Ignore for Banks).
-4. Quality: Cash Flow > Net Income.
-5. Trend: Prefer "Bullish".
-6. Sentiment: Analyze 'recent_news' for lawsuits/fraud/scandals.
+### STRATEGY (STRICT GARP CRITERIA)
+You must strictly evaluate the stock against these exact rules. If ANY rule fails, the stock cannot be a "Strong Buy".
+
+1. **EPS Growth:** 3Y > 20% AND 5Y > 20% AND 7Y > 20%.
+2. **Sales Growth:** 3Y > 15% AND 5Y > 15% AND 7Y > 15%.
+3. **Valuation:** PEG Ratio < 1.0 (Strict).
+4. **Health:** Debt/Equity < 1.0 (Strict).
+5. **Profitability:** PE Ratio > 0.
+6. **Size:** Market Capitalization > 5000 Million (5 Billion).
+7. **Quality:** Cash Flow > Net Income.
+8. **Trend:** Prefer "Bullish" (Above 200DMA).
+9. **Sentiment:** Check 'recent_news' for red flags.
 
 ### OUTPUT FORMAT (Markdown)
 ## Institutional Memo: {Ticker}
@@ -249,17 +253,17 @@ Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted ret
 **Verdict:** [STRONG BUY | WATCHLIST | HARD PASS]
 
 ### 1. Executive Thesis
-(State the core argument clearly. Mention News Sentiment.)
+(State the core argument clearly based on the 9 criteria above.)
 
 ### 2. Quantitative Scorecard
 | Metric | Value | Target | Status |
 | :--- | :--- | :--- | :--- |
-| **EPS Growth (3Y/5Y/7Y)** | {vals}% | > 20% | [PASS/FAIL] |
-| **Sales Growth (3Y/5Y/7Y)** | {vals}% | > 15% | [PASS/FAIL] |
+| **EPS Growth (3Y/5Y/7Y)** | {vals}% | > 20% each | [PASS/FAIL] |
+| **Sales Growth (3Y/5Y/7Y)** | {vals}% | > 15% each | [PASS/FAIL] |
 | **PEG Ratio** | {val} | < 1.0 | [PASS/FAIL] |
 | **Debt/Equity** | {val} | < 1.0 | [PASS/FAIL/SKIP] |
-| **ROE** | {val} | > 15% | [PASS/FAIL] |
-| **Earnings Quality** | {val} | High | [PASS/FAIL] |
+| **PE Ratio** | {val} | > 0 | [PASS/FAIL] |
+| **Market Cap** | {val} M | > 5000 M | [PASS/FAIL] |
 
 ### 3. Risk & Portfolio Fit
 (Comment on Quality, Trend, and News. Why buy/avoid now?)
