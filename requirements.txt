@@ -2,4 +2,3 @@ streamlit
 google-generativeai
 yfinance
 pandas
-duckduckgo-search
