@@ -32,6 +32,7 @@ if not user_api_key:
     st.warning("⬅️ Please enter a Google API Key in the sidebar to start.")
     st.stop()
 
+# Configure API immediately
 try:
     genai.configure(api_key=user_api_key)
 except Exception as e:
@@ -39,7 +40,37 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. ENGINE: GOOGLE NEWS RSS (Reliable)
+# 2. CORE UTILITY: DYNAMIC MODEL FINDER (The 404 Fix)
+# ==========================================
+@st.cache_resource
+def get_valid_model_name():
+    """
+    Asks Google which models are available to this API key 
+    instead of guessing. Prevents 404 errors.
+    """
+    try:
+        available_models = list(genai.list_models())
+        # Filter for models that generate text
+        text_models = [m.name for m in available_models if 'generateContent' in m.supported_generation_methods]
+        
+        # Priority Selection
+        for m in text_models:
+            if 'gemini-1.5-flash' in m: return m  # Fast & Cheap
+        for m in text_models:
+            if 'gemini-1.5-pro' in m: return m    # Smart
+        for m in text_models:
+            if 'gemini-pro' in m: return m        # Classic
+            
+        return text_models[0] if text_models else "models/gemini-pro"
+    except Exception as e:
+        return "models/gemini-pro" # Ultimate fallback
+
+ACTIVE_MODEL_NAME = get_valid_model_name()
+with st.sidebar:
+    st.caption(f"🤖 Model: {ACTIVE_MODEL_NAME}")
+
+# ==========================================
+# 3. ENGINE: GOOGLE NEWS RSS (Reliable)
 # ==========================================
 def get_google_news_rss(query):
     """Fetches news from Google News RSS. Never blocked."""
@@ -61,18 +92,12 @@ def get_google_news_rss(query):
         return "News unavailable."
 
 # ==========================================
-# 3. ENGINE: BRUTE FORCE TICKER RESOLVER
+# 4. ENGINE: TICKER RESOLVER (Robust)
 # ==========================================
-@st.cache_resource
-def get_active_model():
-    return "gemini-1.5-flash"
-
-ACTIVE_MODEL_NAME = get_active_model()
-
 def check_ticker_live(ticker):
     """Returns True if ticker exists on Yahoo, False otherwise."""
     try:
-        # fast_info is the quickest, least-blocked way to check
+        # fast_info is the quickest way to check existence
         price = yf.Ticker(ticker).fast_info.last_price
         return price is not None and price > 0
     except:
@@ -81,41 +106,40 @@ def check_ticker_live(ticker):
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
     """
-    1. Ask AI for ticker.
-    2. If valid, return.
-    3. If invalid, try appending suffixes (.AX, .NS) automatically.
+    1. Check if user input is already a valid ticker.
+    2. If not, ask AI to resolve it.
+    3. Validate AI's response.
     """
     clean_input = user_input.strip().upper()
     
-    # Quick Check: Did user type a valid ticker directly? (e.g. "EAX")
+    # 1. Direct Check (Did they type "EAX"?)
     if check_ticker_live(clean_input): return clean_input
     if check_ticker_live(clean_input + ".AX"): return clean_input + ".AX"
     if check_ticker_live(clean_input + ".NS"): return clean_input + ".NS"
 
-    # AI Attempt
+    # 2. AI Resolution (Did they type "Netflix"?)
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
         prompt = (
             f"What is the exact Yahoo Finance ticker for '{user_input}'? "
-            "Examples: 'Netflix'->NFLX, 'Tata Steel'->TATASTEEL.NS, 'Energy Action'->EAX.AX. "
-            "Return ONLY the text of the ticker."
+            "Examples: 'Netflix'->NFLX, 'Tata Steel'->TATASTEEL.NS, 'Energy Action'->EAX.AX, 'General Motors'->GM. "
+            "Return ONLY the ticker symbol. No text."
         )
         response = model.generate_content(prompt)
         ai_ticker = response.text.strip().upper().replace(" ", "").replace("`", "")
         
-        # Verify AI's guess
         if check_ticker_live(ai_ticker): return ai_ticker
         
-        # Verify AI's guess with suffixes (AI might forget .NS)
+        # AI often forgets suffixes, so we try adding them
         if check_ticker_live(ai_ticker + ".AX"): return ai_ticker + ".AX"
         if check_ticker_live(ai_ticker + ".NS"): return ai_ticker + ".NS"
-        
-    except: pass
+    except:
+        pass
 
-    return clean_input # Fallback to user input if all else fails
+    return clean_input # Return original if all else fails
 
 # ==========================================
-# 4. DATA ENGINE: STEALTH MODE
+# 5. DATA ENGINE: STEALTH MODE
 # ==========================================
 def calculate_cagr(series, years):
     try:
@@ -131,7 +155,7 @@ def calculate_cagr(series, years):
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # 1. PRICE & CAP (Using fast_info to bypass 'info' block)
+    # 1. PRICE (Use fast_info to bypass 'info' block)
     current_price = 0
     mcap = 0
     currency = "USD"
@@ -157,6 +181,7 @@ def get_garp_data(ticker_symbol):
     info = {}
     try: info = stock.info
     except: pass 
+    sector = info.get('sector', 'Unknown')
 
     # 4. METRICS
     growth_data = {}
@@ -228,7 +253,7 @@ def get_garp_data(ticker_symbol):
 
     return {
         "ticker": ticker_symbol.upper(),
-        "sector": info.get('sector', 'Unknown'),
+        "sector": sector,
         "price": round(current_price, 2),
         "currency": currency,
         "market_cap": mcap_fmt,
@@ -243,7 +268,7 @@ def get_garp_data(ticker_symbol):
     }
 
 # ==========================================
-# 5. SYSTEM PROMPT
+# 6. SYSTEM PROMPT
 # ==========================================
 sys_instruction = """
 ### ROLE
@@ -283,7 +308,7 @@ Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted ret
 """
 
 # ==========================================
-# 6. MAIN INTERFACE
+# 7. MAIN INTERFACE
 # ==========================================
 st.title("Institutional Financial Analyst AI")
 
@@ -300,18 +325,16 @@ if submit_btn:
     if not user_input:
         st.warning("Please enter a company name or ticker.")
     else:
-        # 1. RESOLVE & VERIFY TICKER
         with st.spinner(f"🔍 Resolving ticker for '{user_input}'..."):
             resolved_ticker = resolve_ticker(user_input)
             
             # Final check before passing to engine
             if not check_ticker_live(resolved_ticker):
                 st.error(f"❌ Could not find valid data for '{resolved_ticker}'.")
-                st.caption("Try adding the country suffix manualy (e.g. .AX for Australia, .NS for India).")
+                st.caption("Try adding the country suffix manually (e.g. .AX for Australia, .NS for India).")
             else:
                 st.success(f"✅ Analysis Target: **{resolved_ticker}**")
         
-                # 2. FETCH DATA
                 with st.spinner(f"📡 Analyzing {resolved_ticker} (Financials + News)..."):
                     data = get_garp_data(resolved_ticker)
                     
