@@ -38,13 +38,36 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. ENGINE: GOOGLE NEWS RSS (Reliable)
+# 2. CORE UTILITY: MODEL AUTO-DETECT (Restored!)
+# ==========================================
+@st.cache_resource
+def find_working_model():
+    """
+    Scans the user's API key to find which model is actually available.
+    Crucial for preventing the 'Fallback to Uppercase' bug.
+    """
+    try:
+        all_models = list(genai.list_models())
+        valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
+        
+        # Priority: Flash (Fast) -> Pro (Smart)
+        for m in valid_models:
+            if 'gemini-1.5-flash' in m: return m
+        for m in valid_models:
+            if 'gemini-1.5-pro' in m: return m
+        return valid_models[0] if valid_models else "gemini-pro"
+    except:
+        return "gemini-pro"
+
+ACTIVE_MODEL_NAME = find_working_model()
+with st.sidebar:
+    st.success(f"Connected: {ACTIVE_MODEL_NAME}")
+
+# ==========================================
+# 3. ENGINE: GOOGLE NEWS RSS (Reliable)
 # ==========================================
 def get_google_news_rss(query):
-    """
-    Fetches news from Google News RSS. 
-    Why? Yahoo News is empty for many intl stocks. Google News always has something.
-    """
+    """Fetches news from Google News RSS. Always works."""
     try:
         # Clean query for URL
         clean_query = query.replace(".NS", " stock").replace(".AX", " stock")
@@ -54,58 +77,73 @@ def get_google_news_rss(query):
         root = ET.fromstring(response.content)
         
         headlines = []
-        # Parse XML for top 5 items
         for item in root.findall('./channel/item')[:5]:
             title = item.find('title').text
             pubDate = item.find('pubDate').text
             headlines.append(f"- {title} ({pubDate})")
             
-        if not headlines:
-            return "No news found via RSS."
-            
-        return "\n".join(headlines)
-    except Exception as e:
-        return f"News unavailable (Error: {str(e)})"
+        return "\n".join(headlines) if headlines else "No news found."
+    except:
+        return "News unavailable."
 
 # ==========================================
-# 3. ENGINE: SMART TICKER RESOLVER
+# 4. ENGINE: SMART TICKER RESOLVER (Fixed)
 # ==========================================
-@st.cache_resource
-def get_active_model():
-    return "gemini-1.5-flash" # Force Flash for speed/reliability
-
-ACTIVE_MODEL_NAME = get_active_model()
-
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
     """
     Forces AI to find the YAHOO FINANCE specific ticker.
-    Example: 'National Aluminium' -> 'NATIONALUM.NS' (not NALCO.NS)
+    Includes logic to fix common 'NALCO' vs 'NATIONALUM' issues.
     """
-    # If user types a valid-looking ticker, trust it but clean it
-    if "." in user_input and len(user_input) < 12: 
-        return user_input.upper().replace(" ", "")
+    # 1. Clean input
+    clean_input = user_input.strip()
+
+    # 2. If it looks like a ticker, trust it
+    if "." in clean_input and len(clean_input) < 15:
+        return clean_input.upper()
 
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
         prompt = (
-            f"Identify the exact **Yahoo Finance** ticker symbol for '{user_input}'.\n"
-            "CRITICAL RULES:\n"
-            "1. Search your knowledge base for the specific symbol Yahoo Finance uses.\n"
-            "2. For India (NSE/BSE), it usually ends in .NS or .BO (e.g., Reliance -> RELIANCE.NS, National Aluminium -> NATIONALUM.NS).\n"
-            "3. For Australia, it ends in .AX (e.g., BHP -> BHP.AX).\n"
-            "4. For USA, it is just the code (e.g., General Motors -> GM, Tesla -> TSLA).\n"
-            "5. Return ONLY the ticker. No text."
+            f"What is the exact Yahoo Finance ticker symbol for '{clean_input}'?\n"
+            "STRICT RULES:\n"
+            "1. USA: Symbol ONLY (e.g., 'Netflix' -> NFLX, 'General Motors' -> GM).\n"
+            "2. INDIA: Must end in .NS (e.g., 'National Aluminium' -> NATIONALUM.NS, 'Tata Steel' -> TATASTEEL.NS).\n"
+            "3. AUSTRALIA: Must end in .AX (e.g., 'ANZ' -> ANZ.AX, 'CommBank' -> CBA.AX).\n"
+            "4. RETURN ONLY THE SYMBOL. NO TEXT."
         )
         response = model.generate_content(prompt)
         ticker = response.text.strip().upper()
-        ticker = re.sub(r'\*|\`', '', ticker)
+        ticker = re.sub(r'\*|\`', '', ticker) # Remove markdown
+        
+        # 3. Post-Processing Validation
+        if " " in ticker: # AI returned a sentence? Bad.
+            return clean_input.upper()
+            
         return ticker
     except:
-        return user_input.upper()
+        return clean_input.upper()
+
+def verify_ticker(ticker):
+    """
+    Checks if the ticker actually exists on Yahoo.
+    If 'ANZ' fails, tries 'ANZ.AX'.
+    """
+    def check(t):
+        try:
+            return not yf.Ticker(t).history(period="1d").empty
+        except: return False
+
+    if check(ticker): return ticker
+    
+    # Auto-Correct Logic
+    if check(ticker + ".AX"): return ticker + ".AX"
+    if check(ticker + ".NS"): return ticker + ".NS"
+    
+    return ticker # Return original if all fail (will show error later)
 
 # ==========================================
-# 4. DATA ENGINE: THE HEAVY LIFTER
+# 5. DATA ENGINE: HEAVY LIFTER
 # ==========================================
 def calculate_cagr(series, years):
     try:
@@ -121,35 +159,31 @@ def calculate_cagr(series, years):
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # --- 1. VALIDATION CHECK ---
-    # We try to fetch 5 days of history. If this fails, the ticker is WRONG.
+    # --- 1. PRICE FETCH ---
     try:
-        hist = stock.history(period="5d")
-        if hist.empty:
-            return {"error": f"Ticker '{ticker_symbol}' returned no data. It might be delisted or misspelled."}
-        current_price = hist['Close'].iloc[-1]
+        # Prefer fast_info (less blocking)
+        current_price = stock.fast_info.last_price
+        currency = stock.fast_info.currency
+        mcap = stock.fast_info.market_cap
     except:
-        return {"error": f"Yahoo Finance cannot find '{ticker_symbol}'. Please check the ticker manually."}
+        # Fallback to history
+        try:
+            hist = stock.history(period="5d")
+            if hist.empty: return {"error": f"Ticker '{ticker_symbol}' not found. Check spelling."}
+            current_price = hist['Close'].iloc[-1]
+            currency = "USD" # Assumption
+            mcap = "N/A"
+        except:
+             return {"error": f"Yahoo Finance blocked or Ticker '{ticker_symbol}' invalid."}
 
-    # --- 2. ROBUST INFO FETCH ---
-    # We prefer 'fast_info' because 'info' gets blocked often.
+    # --- 2. INFO FETCH (Lazy) ---
     info = {}
-    try:
-        info = stock.info # Try normal first
-    except: pass # If it fails, ignore and rely on calculation
+    try: info = stock.info
+    except: pass # Ignore if blocked
     
-    # Fallbacks if info is empty/blocked
-    currency = info.get('currency', 'USD')
     sector = info.get('sector', 'Unknown')
     
-    # Market Cap Fallback
-    mcap = info.get('marketCap', None)
-    if mcap is None:
-        try:
-            mcap = stock.fast_info.market_cap
-        except: mcap = "N/A"
-
-    # --- 3. FINANCIALS (The Truth Source) ---
+    # --- 3. FINANCIALS ---
     try:
         financials = stock.financials
         cashflow = stock.cashflow
@@ -159,12 +193,10 @@ def get_garp_data(ticker_symbol):
     except:
         return {"error": "Critical: Could not load financial statements."}
 
-    # --- 4. CALCULATE METRICS (The "Quality" Fix) ---
+    # --- 4. CALCULATE METRICS ---
     growth_data = {}
     
-    # A. Growth (3/5/7 Years)
     if not fin_T.empty:
-        # Smart Column Search
         rev_col = next((c for c in fin_T.columns if 'Total Revenue' in c or 'Revenue' in c), None)
         eps_col = next((c for c in fin_T.columns if 'Basic EPS' in c or 'Net Income' in c), None)
         
@@ -172,7 +204,7 @@ def get_garp_data(ticker_symbol):
             growth_data[f'sales_cagr_{yr}y'] = calculate_cagr(fin_T[rev_col], yr) if rev_col else "N/A"
             growth_data[f'eps_cagr_{yr}y'] = calculate_cagr(fin_T[eps_col], yr) if eps_col else "N/A"
 
-    # B. Earnings Quality
+    # Earnings Quality
     earnings_quality_msg = "Unknown"
     try:
         cf_T = cashflow.T
@@ -180,14 +212,13 @@ def get_garp_data(ticker_symbol):
             cf_T.sort_index(ascending=False, inplace=True)
             ocf = next((c for c in cf_T.columns if 'Operating' in c), None)
             ni = next((c for c in fin_T.columns if 'Net Income' in c), None)
-            
             if ocf and ni:
                 ocf_val = float(cf_T.iloc[0][ocf])
                 ni_val = float(fin_T.iloc[0][ni])
                 earnings_quality_msg = "High (Cash > Profit)" if ocf_val > ni_val else "Low (Profit > Cash) ⚠️"
     except: pass
 
-    # C. Trend
+    # Trend
     trend_msg = "Unknown"
     try:
         hist_long = stock.history(period="1y")
@@ -196,10 +227,10 @@ def get_garp_data(ticker_symbol):
             trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma_200 else "Bearish (Below 200DMA) 🔴"
     except: pass
 
-    # --- 5. REPAIR KIT (Manual Ratio Calculation) ---
+    # --- 5. REPAIR KIT (Manual Ratios) ---
     repaired = {}
     
-    # Manual ROE
+    # ROE
     try:
         ni = fin_T.iloc[0][next(c for c in fin_T.columns if 'Net Income' in c)]
         eq_series = balance_sheet.loc['Stockholders Equity'] if 'Stockholders Equity' in balance_sheet.index else balance_sheet.iloc[0]
@@ -207,23 +238,23 @@ def get_garp_data(ticker_symbol):
         repaired['roe'] = round((ni / eq) * 100, 2)
     except: repaired['roe'] = info.get('returnOnEquity', "N/A")
 
-    # Manual Debt/Equity
+    # Debt/Equity
     try:
         debt_series = balance_sheet.loc['Total Debt'] if 'Total Debt' in balance_sheet.index else None
         eq_series = balance_sheet.loc['Stockholders Equity']
         if debt_series is not None:
              repaired['debt_to_equity'] = round(float(debt_series.iloc[0]) / float(eq_series.iloc[0]), 2)
         else:
-             repaired['debt_to_equity'] = "0.0 (No Debt Reported)"
+             repaired['debt_to_equity'] = "0.0 (No Debt)"
     except: repaired['debt_to_equity'] = info.get('debtToEquity', "N/A")
 
-    # Manual PE & PEG
+    # PE & PEG
     try:
         eps_val = float(fin_T.iloc[0][next(c for c in fin_T.columns if 'Basic EPS' in c)])
         pe = current_price / eps_val
         repaired['pe_ratio'] = round(pe, 2)
         
-        # Approximate PEG using 3Y growth if available
+        # Approx PEG
         g_rate = growth_data.get('eps_cagr_3y')
         if isinstance(g_rate, (int, float)) and g_rate > 0:
             repaired['peg_ratio'] = round(pe / g_rate, 2)
@@ -233,15 +264,15 @@ def get_garp_data(ticker_symbol):
         repaired['pe_ratio'] = info.get('trailingPE', "N/A")
         repaired['peg_ratio'] = info.get('pegRatio', "N/A")
 
-    # Format Market Cap
-    mcap_formatted = f"{mcap / 1_000_000:,.2f} M" if isinstance(mcap, (int, float)) else "N/A"
+    # Format Cap
+    mcap_fmt = f"{mcap / 1_000_000:,.2f} M" if isinstance(mcap, (int, float)) else "N/A"
 
     return {
         "ticker": ticker_symbol.upper(),
         "sector": sector,
         "price": round(current_price, 2),
         "currency": currency,
-        "market_cap": mcap_formatted,
+        "market_cap": mcap_fmt,
         "peg_ratio": repaired.get('peg_ratio'),
         "pe_ratio": repaired.get('pe_ratio'),
         "debt_to_equity": repaired.get('debt_to_equity'),
@@ -253,7 +284,7 @@ def get_garp_data(ticker_symbol):
     }
 
 # ==========================================
-# 5. SYSTEM PROMPT
+# 6. SYSTEM PROMPT
 # ==========================================
 sys_instruction = """
 ### ROLE
@@ -270,17 +301,13 @@ Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted ret
 8. **Trend:** Prefer "Bullish" (Above 200DMA).
 9. **Sentiment:** Check 'recent_news' for red flags.
 
-### INSTRUCTION
-If data is "N/A", explicitly state "Data Unavailable" rather than making up a pass/fail.
-If the stock fails the strict criteria but is close, mark it as "WATCHLIST".
-
 ### OUTPUT FORMAT (Markdown)
 ## Institutional Memo: {Ticker}
 **Sector:** {Sector} | **Trend:** {Trend}
 **Verdict:** [STRONG BUY | WATCHLIST | HARD PASS]
 
 ### 1. Executive Thesis
-(Core argument. Address News Sentiment and Data Quality.)
+(State the core argument clearly based on the 9 criteria above.)
 
 ### 2. Quantitative Scorecard
 | Metric | Value | Target | Status |
@@ -297,7 +324,7 @@ If the stock fails the strict criteria but is close, mark it as "WATCHLIST".
 """
 
 # ==========================================
-# 6. MAIN INTERFACE
+# 7. MAIN INTERFACE
 # ==========================================
 st.title("Institutional Financial Analyst AI")
 
@@ -314,13 +341,19 @@ if submit_btn:
     if not user_input:
         st.warning("Please enter a company name or ticker.")
     else:
-        # Show what the AI is resolving to (Debugging transparency)
+        # 1. RESOLVE & VERIFY TICKER
         with st.spinner(f"🔍 Resolving ticker for '{user_input}'..."):
-            resolved_ticker = resolve_ticker(user_input)
-            st.success(f"✅ Analysis Target: **{resolved_ticker}**")
+            initial_ticker = resolve_ticker(user_input)
+            # Verify if it works, if not, auto-correct (add .AX or .NS)
+            final_ticker = verify_ticker(initial_ticker)
+            
+            if final_ticker != initial_ticker:
+                st.info(f"✨ Auto-Corrected '{initial_ticker}' to '{final_ticker}'")
+            st.success(f"✅ Analysis Target: **{final_ticker}**")
         
-        with st.spinner(f"📡 Analyzing {resolved_ticker} (Financials + News)..."):
-            data = get_garp_data(resolved_ticker)
+        # 2. FETCH DATA
+        with st.spinner(f"📡 Analyzing {final_ticker} (Financials + News)..."):
+            data = get_garp_data(final_ticker)
             
             if "error" in data:
                 st.error(f"❌ {data['error']}")
@@ -330,7 +363,7 @@ if submit_btn:
                 for attempt in range(max_retries):
                     try:
                         model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
-                        response = model.generate_content(f"Analyze {resolved_ticker} using this data: {data}")
+                        response = model.generate_content(f"Analyze {final_ticker} using this data: {data}")
                         
                         st.markdown("---")
                         
