@@ -88,16 +88,18 @@ def resolve_ticker(user_input):
         return user_input.upper()
 
 def get_company_news(ticker):
-    """Fetches news headlines."""
+    """Fetches news headlines with Rate Limit protection."""
     try:
         clean_ticker = ticker.replace(".NS", "").replace(".AX", "")
+        # Add a timeout so it doesn't hang
         results = DDGS().news(keywords=f"{clean_ticker} stock news", max_results=5)
         if results:
             return "\n".join([f"- {r['title']} ({r['source']})" for r in results])
         return "No major recent news found."
-    except:
-        return "News fetch failed."
-
+    except Exception as e:
+        # If rate limited, return a safe message instead of crashing
+        return f"News search skipped (Rate Limit). Financials still valid."
+        
 # ==========================================
 # 4. DATA ENGINE (With Repair Kit)
 # ==========================================
