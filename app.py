@@ -61,7 +61,7 @@ def get_google_news_rss(query):
         return "News unavailable."
 
 # ==========================================
-# 3. ENGINE: SMART TICKER RESOLVER (Improved)
+# 3. ENGINE: BRUTE FORCE TICKER RESOLVER
 # ==========================================
 @st.cache_resource
 def get_active_model():
@@ -69,34 +69,53 @@ def get_active_model():
 
 ACTIVE_MODEL_NAME = get_active_model()
 
+def check_ticker_live(ticker):
+    """Returns True if ticker exists on Yahoo, False otherwise."""
+    try:
+        # fast_info is the quickest, least-blocked way to check
+        price = yf.Ticker(ticker).fast_info.last_price
+        return price is not None and price > 0
+    except:
+        return False
+
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
     """
-    Forces AI to find the YAHOO FINANCE specific ticker.
-    Specific Fixes: NALCO -> NATIONALUM.NS, Golden Deeps -> GDE.AX
+    1. Ask AI for ticker.
+    2. If valid, return.
+    3. If invalid, try appending suffixes (.AX, .NS) automatically.
     """
-    if "." in user_input and len(user_input) < 12: 
-        return user_input.upper().replace(" ", "")
+    clean_input = user_input.strip().upper()
+    
+    # Quick Check: Did user type a valid ticker directly? (e.g. "EAX")
+    if check_ticker_live(clean_input): return clean_input
+    if check_ticker_live(clean_input + ".AX"): return clean_input + ".AX"
+    if check_ticker_live(clean_input + ".NS"): return clean_input + ".NS"
 
+    # AI Attempt
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
         prompt = (
-            f"Identify the exact **Yahoo Finance** ticker symbol for '{user_input}'.\n"
-            "CRITICAL RULES:\n"
-            "1. INDIA: National Aluminium is 'NATIONALUM.NS' (NOT NALCO). Tata Steel is 'TATASTEEL.NS'.\n"
-            "2. AUSTRALIA: Must end in .AX (e.g., Golden Deeps -> GDE.AX, Energy Action -> EAX.AX).\n"
-            "3. USA: Symbol ONLY (e.g., General Motors -> GM).\n"
-            "4. Return ONLY the ticker. No text."
+            f"What is the exact Yahoo Finance ticker for '{user_input}'? "
+            "Examples: 'Netflix'->NFLX, 'Tata Steel'->TATASTEEL.NS, 'Energy Action'->EAX.AX. "
+            "Return ONLY the text of the ticker."
         )
         response = model.generate_content(prompt)
-        ticker = response.text.strip().upper()
-        ticker = re.sub(r'\*|\`', '', ticker)
-        return ticker
-    except:
-        return user_input.upper()
+        ai_ticker = response.text.strip().upper().replace(" ", "").replace("`", "")
+        
+        # Verify AI's guess
+        if check_ticker_live(ai_ticker): return ai_ticker
+        
+        # Verify AI's guess with suffixes (AI might forget .NS)
+        if check_ticker_live(ai_ticker + ".AX"): return ai_ticker + ".AX"
+        if check_ticker_live(ai_ticker + ".NS"): return ai_ticker + ".NS"
+        
+    except: pass
+
+    return clean_input # Fallback to user input if all else fails
 
 # ==========================================
-# 4. DATA ENGINE: STEALTH MODE (Anti-Block)
+# 4. DATA ENGINE: STEALTH MODE
 # ==========================================
 def calculate_cagr(series, years):
     try:
@@ -112,32 +131,19 @@ def calculate_cagr(series, years):
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # 1. ANTI-BLOCKING DELAY
-    time.sleep(0.5) 
-
-    # 2. PRICE & CAP (Use fast_info to bypass 'info' block)
+    # 1. PRICE & CAP (Using fast_info to bypass 'info' block)
     current_price = 0
     mcap = 0
     currency = "USD"
     
     try:
-        # fast_info is rarely blocked
         current_price = stock.fast_info.last_price
         mcap = stock.fast_info.market_cap
         currency = stock.fast_info.currency
     except:
-        # Fallback to history if fast_info fails
-        try:
-            hist = stock.history(period="5d")
-            if not hist.empty:
-                current_price = hist['Close'].iloc[-1]
-                mcap = "N/A" # Can't get cap easily from history
-            else:
-                return {"error": f"Ticker '{ticker_symbol}' not found on Yahoo."}
-        except:
-            return {"error": f"Yahoo Finance blocked '{ticker_symbol}'. Try again later."}
+        return {"error": f"Yahoo Finance blocked or Ticker '{ticker_symbol}' invalid."}
 
-    # 3. FINANCIALS (The Real Data)
+    # 2. FINANCIALS
     try:
         financials = stock.financials
         cashflow = stock.cashflow
@@ -147,13 +153,12 @@ def get_garp_data(ticker_symbol):
     except:
         return {"error": "Critical: Could not load financial statements."}
 
-    # 4. INFO (Lazy Load - Only try, don't crash if blocked)
+    # 3. INFO (Lazy Load)
     info = {}
-    try:
-        info = stock.info
-    except: pass # It's okay if this fails, we have the Repair Kit
+    try: info = stock.info
+    except: pass 
 
-    # 5. METRICS CALCULATION
+    # 4. METRICS
     growth_data = {}
     if not fin_T.empty:
         rev_col = next((c for c in fin_T.columns if 'Total Revenue' in c or 'Revenue' in c), None)
@@ -187,7 +192,7 @@ def get_garp_data(ticker_symbol):
             trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma else "Bearish (Below 200DMA) 🔴"
     except: pass
 
-    # 6. REPAIR KIT (Fill gaps)
+    # 5. REPAIR KIT
     repaired = {}
     
     # ROE
@@ -210,7 +215,6 @@ def get_garp_data(ticker_symbol):
         pe = current_price / float(eps)
         repaired['pe_ratio'] = round(pe, 2)
         
-        # Est. PEG using 3Y growth
         g = growth_data.get('eps_cagr_3y')
         if isinstance(g, (int, float)) and g > 0:
             repaired['peg_ratio'] = round(pe / g, 2)
@@ -286,7 +290,7 @@ st.title("Institutional Financial Analyst AI")
 with st.form(key='analysis_form'):
     col1, col2 = st.columns([3, 1])
     with col1:
-        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., General Motors, NALCO, Golden Deeps").strip()
+        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Netflix, Tata Steel").strip()
     with col2:
         st.write("")
         st.write("")
@@ -296,44 +300,51 @@ if submit_btn:
     if not user_input:
         st.warning("Please enter a company name or ticker.")
     else:
+        # 1. RESOLVE & VERIFY TICKER
         with st.spinner(f"🔍 Resolving ticker for '{user_input}'..."):
             resolved_ticker = resolve_ticker(user_input)
-            st.success(f"✅ Analysis Target: **{resolved_ticker}**")
-        
-        with st.spinner(f"📡 Analyzing {resolved_ticker} (Financials + News)..."):
-            data = get_garp_data(resolved_ticker)
             
-            if "error" in data:
-                st.error(f"❌ {data['error']}")
-                st.caption(f"Try searching for the exact ticker (e.g. {resolved_ticker})")
+            # Final check before passing to engine
+            if not check_ticker_live(resolved_ticker):
+                st.error(f"❌ Could not find valid data for '{resolved_ticker}'.")
+                st.caption("Try adding the country suffix manualy (e.g. .AX for Australia, .NS for India).")
             else:
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
-                        response = model.generate_content(f"Analyze {resolved_ticker} using this data: {data}")
-                        
-                        st.markdown("---")
-                        
-                        m1, m2, m3, m4 = st.columns(4)
-                        m1.metric("Price", f"{data.get('currency')} {data.get('price')}")
-                        m2.metric("PEG Ratio", str(data.get('peg_ratio')))
-                        m3.metric("Trend", data.get('technical_trend'))
-                        m4.metric("Market Cap", str(data.get('market_cap')))
-                        
-                        st.markdown(response.text)
-                        
-                        with st.expander("📰 View News Source (Google RSS)"):
-                            st.write(data.get('recent_news'))
-                        
-                        break 
-                        
-                    except Exception as e:
-                        if "429" in str(e):
-                            if attempt < max_retries - 1:
-                                time.sleep(5)
-                            else:
-                                st.error("❌ Google AI Quota Exceeded. Try again later.")
-                        else:
-                            st.error(f"AI Error: {e}")
-                            break
+                st.success(f"✅ Analysis Target: **{resolved_ticker}**")
+        
+                # 2. FETCH DATA
+                with st.spinner(f"📡 Analyzing {resolved_ticker} (Financials + News)..."):
+                    data = get_garp_data(resolved_ticker)
+                    
+                    if "error" in data:
+                        st.error(f"❌ {data['error']}")
+                    else:
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
+                                response = model.generate_content(f"Analyze {resolved_ticker} using this data: {data}")
+                                
+                                st.markdown("---")
+                                
+                                m1, m2, m3, m4 = st.columns(4)
+                                m1.metric("Price", f"{data.get('currency')} {data.get('price')}")
+                                m2.metric("PEG Ratio", str(data.get('peg_ratio')))
+                                m3.metric("Trend", data.get('technical_trend'))
+                                m4.metric("Market Cap", str(data.get('market_cap')))
+                                
+                                st.markdown(response.text)
+                                
+                                with st.expander("📰 View News Source (Google RSS)"):
+                                    st.write(data.get('recent_news'))
+                                
+                                break 
+                                
+                            except Exception as e:
+                                if "429" in str(e):
+                                    if attempt < max_retries - 1:
+                                        time.sleep(5)
+                                    else:
+                                        st.error("❌ Google AI Quota Exceeded. Try again later.")
+                                else:
+                                    st.error(f"AI Error: {e}")
+                                    break
