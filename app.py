@@ -4,7 +4,6 @@ import yfinance as yf
 import pandas as pd
 import warnings
 import re
-import time
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -18,7 +17,7 @@ div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. SIDEBAR CONFIGURATION (Public Safe)
+# 1. SIDEBAR CONFIGURATION
 # ==========================================
 with st.sidebar:
     st.title("🦅 Controls")
@@ -45,7 +44,6 @@ def find_working_model():
     try:
         all_models = list(genai.list_models())
         valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
-        
         for m in valid_models:
             if 'gemini-1.5-flash' in m: return m
         for m in valid_models:
@@ -83,20 +81,18 @@ def resolve_ticker(user_input):
         return user_input.upper()
 
 # ==========================================
-# 4. DATA ENGINE (Yahoo News + Repair Kit)
+# 4. DATA ENGINE (BACKDOOR MODE)
 # ==========================================
 def get_yahoo_news(ticker):
-    """Fetches safe, non-blocking news from Yahoo."""
+    """Fetches news via Ticker object (rarely blocked)."""
     try:
         stock = yf.Ticker(ticker)
         news = stock.news
         if not news: return "No recent news found."
-        
         headlines = []
-        for n in news[:5]: # Top 5 stories
+        for n in news[:5]:
             title = n.get('title', 'No Title')
             headlines.append(f"- {title}")
-            
         return "\n".join(headlines)
     except:
         return "News unavailable."
@@ -114,29 +110,25 @@ def calculate_cagr(series, years):
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # --- PHASE 1: SURVIVAL FETCHING ---
+    # --- STEP 1: PRICE (The Backdoor) ---
+    # We skip 'info' because it gets blocked. We go straight to 'history'.
+    current_price = 0
+    currency = "USD"
+    
     try:
-        # Standard Info
-        info = stock.info
-        current_price = info.get('currentPrice', info.get('regularMarketPrice', 0))
-        currency = info.get('currency', 'USD')
-        sector = info.get('sector', 'Unknown')
-        mcap = info.get('marketCap', 0)
+        # Fetch 5 days history to be safe
+        hist = stock.history(period="5d")
+        if not hist.empty:
+            current_price = hist['Close'].iloc[-1]
+            # Try to guess currency or default to USD
+            meta = stock.history_metadata
+            currency = meta.get('currency', 'USD') if meta else 'USD'
+        else:
+            return {"error": f"Ticker '{ticker_symbol}' found, but no price data available."}
     except:
-        # FALLBACK: Fast Info (Harder to block)
-        try:
-            fast = stock.fast_info
-            current_price = fast.last_price
-            currency = fast.currency
-            mcap = fast.market_cap
-            sector = "Unknown (Rate Limited)"
-            info = {} 
-        except:
-            return {"error": "Yahoo Finance blocked this IP. Please try again in 1 hour."}
+        return {"error": f"Could not fetch price for '{ticker_symbol}'. Yahoo blocked History."}
 
-    if current_price == 0: return {"error": f"Ticker '{ticker_symbol}' not found."}
-
-    # --- PHASE 2: FINANCIALS ---
+    # --- STEP 2: FINANCIALS (The Raw Data) ---
     try:
         financials = stock.financials
         cashflow = stock.cashflow
@@ -146,18 +138,15 @@ def get_garp_data(ticker_symbol):
     except:
         return {"error": "Financials unavailable (Rate Limit)."}
 
-    # --- PHASE 3: METRICS (3/5/7 YEAR LOOPS) ---
+    # --- STEP 3: METRICS ---
     growth_data = {}
     if not fin_T.empty:
         rev_col = next((c for c in fin_T.columns if 'Total Revenue' in c), None)
         eps_col = next((c for c in fin_T.columns if 'Basic EPS' in c or 'Net Income' in c), None)
-        
-        # THIS IS YOUR FOUNDATIONAL LOGIC PRESERVED
         for yr in [3, 5, 7]:
             growth_data[f'sales_cagr_{yr}y'] = calculate_cagr(fin_T[rev_col], yr) if rev_col else "N/A"
             growth_data[f'eps_cagr_{yr}y'] = calculate_cagr(fin_T[eps_col], yr) if eps_col else "N/A"
 
-    # --- PHASE 4: QUALITY CHECK ---
     earnings_quality_msg = "Unknown"
     try:
         cf_T = cashflow.T
@@ -170,61 +159,71 @@ def get_garp_data(ticker_symbol):
                 else: earnings_quality_msg = "Low (Profit > Cash) ⚠️"
     except: pass
 
-    # --- PHASE 5: TREND CHECK ---
+    # --- STEP 4: TREND ---
     trend_msg = "Unknown"
+    sma_200 = 0
     try:
-        hist = stock.history(period="1y")
-        if not hist.empty and len(hist) > 200:
-            sma = hist['Close'].rolling(200).mean().iloc[-1]
-            trend_msg = "Bullish" if current_price > sma else "Bearish"
+        # We already have history if we are here, or fetch longer for trend
+        hist_long = stock.history(period="1y")
+        if not hist_long.empty and len(hist_long) > 200:
+            sma_200 = hist_long['Close'].rolling(200).mean().iloc[-1]
+            trend_msg = "Bullish" if current_price > sma_200 else "Bearish"
     except: pass
 
-    # --- PHASE 6: REPAIR KIT (Fixes N/A) ---
+    # --- STEP 5: MANUAL REPAIR (Since we skipped 'info') ---
     repaired = {}
-    # Repair ROE
-    if info.get('returnOnEquity') is None:
-        try:
-            ni = financials.loc['Net Income'].iloc[0] if 'Net Income' in financials.index else 0
-            eq = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else 1
-            repaired['roe'] = round(ni / eq, 4) if eq != 0 else "N/A"
-        except: repaired['roe'] = "N/A"
-    else: repaired['roe'] = info.get('returnOnEquity')
+    
+    # 1. ROE (Net Income / Equity)
+    try:
+        ni = financials.loc['Net Income'].iloc[0] if 'Net Income' in financials.index else 0
+        eq = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else 1
+        repaired['roe'] = round(ni / eq * 100, 2) if eq != 0 else "N/A"
+    except: repaired['roe'] = "N/A"
 
-    # Repair Debt/Equity
-    if info.get('debtToEquity') is None:
-        try:
-            debt = balance_sheet.loc['Total Debt'].iloc[0] if 'Total Debt' in balance_sheet.index else 0
-            eq = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else 1
-            repaired['debt_to_equity'] = round((debt / eq) * 100, 2)
-        except: repaired['debt_to_equity'] = "N/A"
-    else: repaired['debt_to_equity'] = info.get('debtToEquity')
+    # 2. Debt/Equity (Total Debt / Equity)
+    try:
+        debt = balance_sheet.loc['Total Debt'].iloc[0] if 'Total Debt' in balance_sheet.index else 0
+        eq = balance_sheet.loc['Stockholders Equity'].iloc[0] if 'Stockholders Equity' in balance_sheet.index else 1
+        repaired['debt_to_equity'] = round(debt / eq, 2)
+    except: repaired['debt_to_equity'] = "N/A"
 
-    # Repair PEG
-    if info.get('pegRatio') is None:
-        try:
-            pe = info.get('trailingPE')
-            if pe is None:
-                eps = financials.loc['Basic EPS'].iloc[0] if 'Basic EPS' in financials.index else None
-                if current_price and eps: pe = current_price / eps
-            repaired['pe_ratio'] = round(pe, 2) if pe else "N/A"
-            repaired['peg_ratio'] = "N/A (Calc Failed)"
-        except:
-            repaired['pe_ratio'] = "N/A"
-            repaired['peg_ratio'] = "N/A"
-    else:
-        repaired['peg_ratio'] = info.get('pegRatio')
-        repaired['pe_ratio'] = info.get('trailingPE')
+    # 3. PE Ratio (Price / EPS)
+    try:
+        eps = financials.loc['Basic EPS'].iloc[0] if 'Basic EPS' in financials.index else None
+        if current_price and eps:
+             repaired['pe_ratio'] = round(current_price / eps, 2)
+        else:
+             repaired['pe_ratio'] = "N/A"
+    except: repaired['pe_ratio'] = "N/A"
+
+    # 4. Market Cap (Price * Shares)
+    # This is tricky without 'info', we assume shares count from 'Basic Average Shares'
+    try:
+        shares = financials.loc['Basic Average Shares'].iloc[0] if 'Basic Average Shares' in financials.index else 0
+        mcap = current_price * shares
+    except: mcap = 0
+    
+    # 5. PEG (Hard to calc manually without growth forecast, so we mark N/A or use historical)
+    repaired['peg_ratio'] = "N/A (Data Blocked)"
+
+    # Attempt to fetch 'info' lazily just for Sector/PEG, but ignore if it fails
+    sector = "Unknown"
+    try:
+        info = stock.info # This might fail
+        sector = info.get('sector', 'Unknown')
+        if info.get('pegRatio'): repaired['peg_ratio'] = info.get('pegRatio')
+    except: pass
 
     return {
         "ticker": ticker_symbol.upper(),
         "sector": sector,
-        "price": current_price,
+        "price": round(current_price, 2),
         "currency": currency,
-        "market_cap_millions": round(mcap / 1_000_000, 2) if mcap else 0,
-        "peg_ratio": repaired.get('peg_ratio', "N/A"),
-        "pe_ratio": repaired.get('pe_ratio', "N/A"),
-        "debt_to_equity": repaired.get('debt_to_equity', "N/A"),
-        "roe": repaired.get('roe', "N/A"),
+        "market_cap_millions": round(mcap / 1_000_000, 2) if mcap else "N/A",
+        "peg_ratio": repaired.get('peg_ratio'),
+        "pe_ratio": repaired.get('pe_ratio'),
+        "debt_to_equity": repaired.get('debt_to_equity'),
+        "roe": repaired.get('roe'),
         "earnings_quality": earnings_quality_msg,
         "technical_trend": trend_msg,
         "recent_news": get_yahoo_news(ticker_symbol),
@@ -232,7 +231,7 @@ def get_garp_data(ticker_symbol):
     }
 
 # ==========================================
-# 5. SYSTEM PROMPT (STRICT GARP CRITERIA)
+# 5. SYSTEM PROMPT
 # ==========================================
 sys_instruction = """
 ### ROLE
