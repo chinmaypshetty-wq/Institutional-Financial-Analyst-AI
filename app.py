@@ -5,7 +5,6 @@ import pandas as pd
 import warnings
 import re
 import time
-import requests
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -19,7 +18,7 @@ div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. SIDEBAR CONFIGURATION
+# 1. SIDEBAR CONFIGURATION (Public Safe)
 # ==========================================
 with st.sidebar:
     st.title("🦅 Controls")
@@ -46,6 +45,7 @@ def find_working_model():
     try:
         all_models = list(genai.list_models())
         valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
+        
         for m in valid_models:
             if 'gemini-1.5-flash' in m: return m
         for m in valid_models:
@@ -83,26 +83,20 @@ def resolve_ticker(user_input):
         return user_input.upper()
 
 # ==========================================
-# 4. DATA ENGINE (STEALTH MODE)
+# 4. DATA ENGINE (Yahoo News + Repair Kit)
 # ==========================================
-def get_yahoo_session():
-    """Creates a browser-like session to bypass blocks."""
-    session = requests.Session()
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    })
-    return session
-
 def get_yahoo_news(ticker):
+    """Fetches safe, non-blocking news from Yahoo."""
     try:
-        # Use stealth session for news too
-        stock = yf.Ticker(ticker, session=get_yahoo_session())
+        stock = yf.Ticker(ticker)
         news = stock.news
         if not news: return "No recent news found."
+        
         headlines = []
-        for n in news[:5]:
+        for n in news[:5]: # Top 5 stories
             title = n.get('title', 'No Title')
             headlines.append(f"- {title}")
+            
         return "\n".join(headlines)
     except:
         return "News unavailable."
@@ -118,9 +112,7 @@ def calculate_cagr(series, years):
 
 @st.cache_data(ttl=3600) 
 def get_garp_data(ticker_symbol):
-    # USE THE STEALTH SESSION
-    session = get_yahoo_session()
-    stock = yf.Ticker(ticker_symbol, session=session)
+    stock = yf.Ticker(ticker_symbol)
     
     # --- PHASE 1: SURVIVAL FETCHING ---
     try:
@@ -131,7 +123,7 @@ def get_garp_data(ticker_symbol):
         sector = info.get('sector', 'Unknown')
         mcap = info.get('marketCap', 0)
     except:
-        # FALLBACK: Fast Info (Different Endpoint)
+        # FALLBACK: Fast Info (Harder to block)
         try:
             fast = stock.fast_info
             current_price = fast.last_price
@@ -154,15 +146,18 @@ def get_garp_data(ticker_symbol):
     except:
         return {"error": "Financials unavailable (Rate Limit)."}
 
-    # --- PHASE 3: METRICS ---
+    # --- PHASE 3: METRICS (3/5/7 YEAR LOOPS) ---
     growth_data = {}
     if not fin_T.empty:
         rev_col = next((c for c in fin_T.columns if 'Total Revenue' in c), None)
         eps_col = next((c for c in fin_T.columns if 'Basic EPS' in c or 'Net Income' in c), None)
+        
+        # THIS IS YOUR FOUNDATIONAL LOGIC PRESERVED
         for yr in [3, 5, 7]:
             growth_data[f'sales_cagr_{yr}y'] = calculate_cagr(fin_T[rev_col], yr) if rev_col else "N/A"
             growth_data[f'eps_cagr_{yr}y'] = calculate_cagr(fin_T[eps_col], yr) if eps_col else "N/A"
 
+    # --- PHASE 4: QUALITY CHECK ---
     earnings_quality_msg = "Unknown"
     try:
         cf_T = cashflow.T
@@ -175,6 +170,7 @@ def get_garp_data(ticker_symbol):
                 else: earnings_quality_msg = "Low (Profit > Cash) ⚠️"
     except: pass
 
+    # --- PHASE 5: TREND CHECK ---
     trend_msg = "Unknown"
     try:
         hist = stock.history(period="1y")
@@ -183,7 +179,7 @@ def get_garp_data(ticker_symbol):
             trend_msg = "Bullish" if current_price > sma else "Bearish"
     except: pass
 
-    # --- PHASE 4: REPAIR KIT ---
+    # --- PHASE 6: REPAIR KIT (Fixes N/A) ---
     repaired = {}
     # Repair ROE
     if info.get('returnOnEquity') is None:
@@ -236,7 +232,7 @@ def get_garp_data(ticker_symbol):
     }
 
 # ==========================================
-# 5. SYSTEM PROMPT
+# 5. SYSTEM PROMPT (STRICT GARP CRITERIA)
 # ==========================================
 sys_instruction = """
 ### ROLE
