@@ -58,7 +58,7 @@ def get_valid_model_name():
 
 ACTIVE_MODEL_NAME = get_valid_model_name()
 with st.sidebar:
-    st.caption(f"🤖 Model: {ACTIVE_MODEL_NAME}")
+    st.caption(f" Model: {ACTIVE_MODEL_NAME}")
 
 # ==========================================
 # 3. ENGINE: GOOGLE NEWS RSS (Reliable)
@@ -150,15 +150,15 @@ def safe_cagr(start, end, years):
         
         # Scenario 2: Turnaround (Negative -> Positive)
         if s < 0 and e > 0:
-            return "TURNAROUND (Loss to Profit) 🚀"
+            return "TURNAROUND (Loss to Profit) "
             
         # Scenario 3: Deterioration (Positive -> Negative)
         if s > 0 and e < 0:
-            return "COLLAPSE (Profit to Loss) ⚠️"
+            return "COLLAPSE (Profit to Loss) "
             
         # Scenario 4: Reducing Losses (Negative -> Less Negative)
         if s < 0 and e < 0 and e > s:
-            return "IMPROVING (Losses Narrowing) 📈"
+            return "IMPROVING (Losses Narrowing) "
             
         return "N/A"
     except: return None
@@ -250,7 +250,7 @@ def get_institutional_data(ticker_symbol):
     try:
         ocf = cash.iloc[0][find_col(cash, ['Operating Cash Flow', 'Operating'])]
         ni = fin.iloc[0][ni_c]
-        kpis['quality'] = "High (Cash > Profit) ✅" if ocf > ni else "Low (Profit > Cash) ⚠️"
+        kpis['quality'] = "High (Cash > Profit) " if ocf > ni else "Low (Profit > Cash) "
     except:
         kpis['quality'] = "Unknown"
 
@@ -266,7 +266,7 @@ def get_institutional_data(ticker_symbol):
     # Trend
     try:
         sma200 = hist['Close'].rolling(200).mean().iloc[-1]
-        kpis['trend'] = "Uptrend (Above 200DMA) 🟢" if current_price > sma200 else "Downtrend (Below 200DMA) 🔴"
+        kpis['trend'] = "Uptrend (Above 200DMA) " if current_price > sma200 else "Downtrend (Below 200DMA) "
     except: kpis['trend'] = "Neutral"
 
     return {
@@ -301,7 +301,7 @@ Look at the "Raw 5-Year Financial History".
 * **Do not fail a stock just because one metric is N/A.** If the *trend* is good, approve it.
 
 ### OUTPUT FORMAT
-## 🦅 Institutional Verdict: {Ticker}
+## Institutional Verdict: {Ticker}
 **Rating:** [STRONG BUY | BUY | WATCHLIST | SELL]
 **Risk Level:** [Low/Medium/High]
 
@@ -332,11 +332,11 @@ st.title("Institutional Financial Analyst AI")
 with st.form(key='analysis_form'):
     col1, col2 = st.columns([3, 1])
     with col1:
-        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Netflix, LIC, Golden Deeps").strip()
+        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Netflix, Tata Steel, Golden Deeps").strip()
     with col2:
         st.write("")
         st.write("")
-        submit_btn = st.form_submit_button("🚀 Run Analysis", type="primary", use_container_width=True)
+        submit_btn = st.form_submit_button(" Run Analysis", type="primary", use_container_width=True)
 
 if submit_btn:
     if not user_input:
@@ -346,10 +346,10 @@ if submit_btn:
             ticker = resolve_ticker(user_input)
             
             if not check_ticker_live(ticker):
-                st.error(f"❌ Could not find data for '{ticker}'.")
+                st.error(f" Could not find data for '{ticker}'.")
                 st.caption("Try adding the suffix manually (e.g. .NS, .AX).")
             else:
-                st.success(f"✅ Target: **{ticker}**")
+                st.success(f" Target: **{ticker}**")
                 
                 with st.spinner("📡 Calculating KPIs & Predicting Trends..."):
                     data = get_institutional_data(ticker)
