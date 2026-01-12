@@ -6,6 +6,7 @@ import warnings
 import re
 import requests
 import xml.etree.ElementTree as ET
+import time
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -38,34 +39,14 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. CORE UTILITY: MODEL AUTO-DETECT
-# ==========================================
-@st.cache_resource
-def find_working_model():
-    """Finds a valid model to prevent 404 errors."""
-    try:
-        all_models = list(genai.list_models())
-        valid_models = [m.name for m in all_models if 'generateContent' in m.supported_generation_methods]
-        for m in valid_models:
-            if 'gemini-1.5-flash' in m: return m
-        for m in valid_models:
-            if 'gemini-1.5-pro' in m: return m
-        return valid_models[0] if valid_models else "gemini-pro"
-    except:
-        return "gemini-pro"
-
-ACTIVE_MODEL_NAME = find_working_model()
-with st.sidebar:
-    st.success(f"Connected: {ACTIVE_MODEL_NAME}")
-
-# ==========================================
-# 3. ENGINE: GOOGLE NEWS RSS (Reliable)
+# 2. ENGINE: GOOGLE NEWS RSS (Reliable)
 # ==========================================
 def get_google_news_rss(query):
-    """Fetches news from Google News RSS. Always works."""
+    """Fetches news from Google News RSS. Never blocked."""
     try:
         clean_query = query.replace(".NS", " stock").replace(".AX", " stock")
         url = f"https://news.google.com/rss/search?q={clean_query}&hl=en-US&gl=US&ceid=US:en"
+        
         response = requests.get(url, timeout=5)
         root = ET.fromstring(response.content)
         
@@ -75,47 +56,47 @@ def get_google_news_rss(query):
             pubDate = item.find('pubDate').text
             headlines.append(f"- {title} ({pubDate})")
             
-        return "\n".join(headlines) if headlines else "No news found."
+        return "\n".join(headlines) if headlines else "No news found via RSS."
     except:
         return "News unavailable."
 
 # ==========================================
-# 4. ENGINE: SMART TICKER RESOLVER (STRICT CLEANING)
+# 3. ENGINE: SMART TICKER RESOLVER (Improved)
 # ==========================================
+@st.cache_resource
+def get_active_model():
+    return "gemini-1.5-flash"
+
+ACTIVE_MODEL_NAME = get_active_model()
+
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
     """
-    Resolves ticker and performs NUCLEAR CLEANING to remove hidden characters.
+    Forces AI to find the YAHOO FINANCE specific ticker.
+    Specific Fixes: NALCO -> NATIONALUM.NS, Golden Deeps -> GDE.AX
     """
-    clean_input = user_input.strip()
-    
-    # If user provides a ticker directly (contains dot or is short caps), use it
-    if "." in clean_input or (clean_input.isupper() and len(clean_input) < 6):
-        return re.sub(r'[^A-Z0-9.]', '', clean_input) # NUCLEAR CLEAN
+    if "." in user_input and len(user_input) < 12: 
+        return user_input.upper().replace(" ", "")
 
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
         prompt = (
-            f"What is the exact Yahoo Finance ticker symbol for '{clean_input}'?\n"
-            "STRICT RULES:\n"
-            "1. USA: Symbol ONLY (e.g., 'Netflix' -> NFLX).\n"
-            "2. INDIA: Must end in .NS (e.g., 'National Aluminium' -> NATIONALUM.NS).\n"
-            "3. AUSTRALIA: Must end in .AX (e.g., 'Golden Deeps' -> GDE.AX).\n"
-            "4. RETURN ONLY THE SYMBOL."
+            f"Identify the exact **Yahoo Finance** ticker symbol for '{user_input}'.\n"
+            "CRITICAL RULES:\n"
+            "1. INDIA: National Aluminium is 'NATIONALUM.NS' (NOT NALCO). Tata Steel is 'TATASTEEL.NS'.\n"
+            "2. AUSTRALIA: Must end in .AX (e.g., Golden Deeps -> GDE.AX, Energy Action -> EAX.AX).\n"
+            "3. USA: Symbol ONLY (e.g., General Motors -> GM).\n"
+            "4. Return ONLY the ticker. No text."
         )
         response = model.generate_content(prompt)
         ticker = response.text.strip().upper()
-        
-        # NUCLEAR CLEAN: Remove everything that isn't a Letter, Number, or Dot
-        # This removes hidden spaces, newlines, asterisks, everything.
-        ticker = re.sub(r'[^A-Z0-9.]', '', ticker)
-        
+        ticker = re.sub(r'\*|\`', '', ticker)
         return ticker
     except:
-        return clean_input.upper()
+        return user_input.upper()
 
 # ==========================================
-# 5. DATA ENGINE: HEAVY LIFTER
+# 4. DATA ENGINE: STEALTH MODE (Anti-Block)
 # ==========================================
 def calculate_cagr(series, years):
     try:
@@ -131,31 +112,32 @@ def calculate_cagr(series, years):
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # --- 1. PRICE FETCH (The Validity Check) ---
+    # 1. ANTI-BLOCKING DELAY
+    time.sleep(0.5) 
+
+    # 2. PRICE & CAP (Use fast_info to bypass 'info' block)
+    current_price = 0
+    mcap = 0
+    currency = "USD"
+    
     try:
-        # We start with fast_info. If this works, the ticker is valid.
+        # fast_info is rarely blocked
         current_price = stock.fast_info.last_price
-        currency = stock.fast_info.currency
         mcap = stock.fast_info.market_cap
+        currency = stock.fast_info.currency
     except:
         # Fallback to history if fast_info fails
         try:
             hist = stock.history(period="5d")
-            if hist.empty: return {"error": f"Ticker '{ticker_symbol}' not found. Try entering the code manually (e.g., GDE.AX)."}
-            current_price = hist['Close'].iloc[-1]
-            currency = "USD" 
-            mcap = "N/A"
+            if not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+                mcap = "N/A" # Can't get cap easily from history
+            else:
+                return {"error": f"Ticker '{ticker_symbol}' not found on Yahoo."}
         except:
-             return {"error": f"Yahoo Finance blocked or Ticker '{ticker_symbol}' invalid."}
+            return {"error": f"Yahoo Finance blocked '{ticker_symbol}'. Try again later."}
 
-    # --- 2. INFO FETCH (Lazy) ---
-    info = {}
-    try: info = stock.info
-    except: pass 
-    
-    sector = info.get('sector', 'Unknown')
-    
-    # --- 3. FINANCIALS ---
+    # 3. FINANCIALS (The Real Data)
     try:
         financials = stock.financials
         cashflow = stock.cashflow
@@ -165,9 +147,14 @@ def get_garp_data(ticker_symbol):
     except:
         return {"error": "Critical: Could not load financial statements."}
 
-    # --- 4. CALCULATE METRICS ---
+    # 4. INFO (Lazy Load - Only try, don't crash if blocked)
+    info = {}
+    try:
+        info = stock.info
+    except: pass # It's okay if this fails, we have the Repair Kit
+
+    # 5. METRICS CALCULATION
     growth_data = {}
-    
     if not fin_T.empty:
         rev_col = next((c for c in fin_T.columns if 'Total Revenue' in c or 'Revenue' in c), None)
         eps_col = next((c for c in fin_T.columns if 'Basic EPS' in c or 'Net Income' in c), None)
@@ -185,9 +172,10 @@ def get_garp_data(ticker_symbol):
             ocf = next((c for c in cf_T.columns if 'Operating' in c), None)
             ni = next((c for c in fin_T.columns if 'Net Income' in c), None)
             if ocf and ni:
-                ocf_val = float(cf_T.iloc[0][ocf])
-                ni_val = float(fin_T.iloc[0][ni])
-                earnings_quality_msg = "High (Cash > Profit)" if ocf_val > ni_val else "Low (Profit > Cash) ⚠️"
+                if float(cf_T.iloc[0][ocf]) > float(fin_T.iloc[0][ni]):
+                    earnings_quality_msg = "High (Cash > Profit)"
+                else:
+                    earnings_quality_msg = "Low (Profit > Cash) ⚠️"
     except: pass
 
     # Trend
@@ -195,40 +183,37 @@ def get_garp_data(ticker_symbol):
     try:
         hist_long = stock.history(period="1y")
         if len(hist_long) > 200:
-            sma_200 = hist_long['Close'].rolling(200).mean().iloc[-1]
-            trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma_200 else "Bearish (Below 200DMA) 🔴"
+            sma = hist_long['Close'].rolling(200).mean().iloc[-1]
+            trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma else "Bearish (Below 200DMA) 🔴"
     except: pass
 
-    # --- 5. REPAIR KIT (Manual Ratios) ---
+    # 6. REPAIR KIT (Fill gaps)
     repaired = {}
     
     # ROE
     try:
         ni = fin_T.iloc[0][next(c for c in fin_T.columns if 'Net Income' in c)]
-        eq_series = balance_sheet.loc['Stockholders Equity'] if 'Stockholders Equity' in balance_sheet.index else balance_sheet.iloc[0]
-        eq = float(eq_series.iloc[0])
-        repaired['roe'] = round((ni / eq) * 100, 2)
+        eq = balance_sheet.loc['Stockholders Equity'].iloc[0]
+        repaired['roe'] = round((float(ni) / float(eq)) * 100, 2)
     except: repaired['roe'] = info.get('returnOnEquity', "N/A")
 
     # Debt/Equity
     try:
-        debt_series = balance_sheet.loc['Total Debt'] if 'Total Debt' in balance_sheet.index else None
-        eq_series = balance_sheet.loc['Stockholders Equity']
-        if debt_series is not None:
-             repaired['debt_to_equity'] = round(float(debt_series.iloc[0]) / float(eq_series.iloc[0]), 2)
-        else:
-             repaired['debt_to_equity'] = "0.0 (No Debt)"
+        debt = balance_sheet.loc['Total Debt'].iloc[0]
+        eq = balance_sheet.loc['Stockholders Equity'].iloc[0]
+        repaired['debt_to_equity'] = round(float(debt) / float(eq), 2)
     except: repaired['debt_to_equity'] = info.get('debtToEquity', "N/A")
 
     # PE & PEG
     try:
-        eps_val = float(fin_T.iloc[0][next(c for c in fin_T.columns if 'Basic EPS' in c)])
-        pe = current_price / eps_val
+        eps = fin_T.iloc[0][next(c for c in fin_T.columns if 'Basic EPS' in c)]
+        pe = current_price / float(eps)
         repaired['pe_ratio'] = round(pe, 2)
         
-        g_rate = growth_data.get('eps_cagr_3y')
-        if isinstance(g_rate, (int, float)) and g_rate > 0:
-            repaired['peg_ratio'] = round(pe / g_rate, 2)
+        # Est. PEG using 3Y growth
+        g = growth_data.get('eps_cagr_3y')
+        if isinstance(g, (int, float)) and g > 0:
+            repaired['peg_ratio'] = round(pe / g, 2)
         else:
             repaired['peg_ratio'] = info.get('pegRatio', "N/A")
     except: 
@@ -239,7 +224,7 @@ def get_garp_data(ticker_symbol):
 
     return {
         "ticker": ticker_symbol.upper(),
-        "sector": sector,
+        "sector": info.get('sector', 'Unknown'),
         "price": round(current_price, 2),
         "currency": currency,
         "market_cap": mcap_fmt,
@@ -254,7 +239,7 @@ def get_garp_data(ticker_symbol):
     }
 
 # ==========================================
-# 6. SYSTEM PROMPT
+# 5. SYSTEM PROMPT
 # ==========================================
 sys_instruction = """
 ### ROLE
@@ -277,7 +262,7 @@ Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted ret
 **Verdict:** [STRONG BUY | WATCHLIST | HARD PASS]
 
 ### 1. Executive Thesis
-(State the core argument. Integrate News Sentiment immediately here.)
+(State the core argument clearly based on the 9 criteria above.)
 
 ### 2. Quantitative Scorecard
 | Metric | Value | Target | Status |
@@ -290,18 +275,18 @@ Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted ret
 | **Market Cap** | {val} | > 5000 M | [PASS/FAIL] |
 
 ### 3. Risk & Portfolio Fit
-(Why buy/avoid now?)
+(Comment on Quality, Trend, and News. Why buy/avoid now?)
 """
 
 # ==========================================
-# 7. MAIN INTERFACE
+# 6. MAIN INTERFACE
 # ==========================================
 st.title("Institutional Financial Analyst AI")
 
 with st.form(key='analysis_form'):
     col1, col2 = st.columns([3, 1])
     with col1:
-        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Golden Deeps, LIC, Netflix").strip()
+        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., General Motors, NALCO, Golden Deeps").strip()
     with col2:
         st.write("")
         st.write("")
@@ -311,18 +296,16 @@ if submit_btn:
     if not user_input:
         st.warning("Please enter a company name or ticker.")
     else:
-        # 1. RESOLVE
         with st.spinner(f"🔍 Resolving ticker for '{user_input}'..."):
             resolved_ticker = resolve_ticker(user_input)
-            
-        # 2. ANALYZE
+            st.success(f"✅ Analysis Target: **{resolved_ticker}**")
+        
         with st.spinner(f"📡 Analyzing {resolved_ticker} (Financials + News)..."):
             data = get_garp_data(resolved_ticker)
             
             if "error" in data:
                 st.error(f"❌ {data['error']}")
-                st.info(f"**Attempted Ticker:** `{resolved_ticker}`")
-                st.caption("Tip: If the AI guessed wrong, enter the exact ticker (e.g., GDE.AX, PGFOLS.NS).")
+                st.caption(f"Try searching for the exact ticker (e.g. {resolved_ticker})")
             else:
                 max_retries = 3
                 for attempt in range(max_retries):
@@ -330,15 +313,8 @@ if submit_btn:
                         model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
                         response = model.generate_content(f"Analyze {resolved_ticker} using this data: {data}")
                         
-                        st.success(f"Analysis Complete: **{resolved_ticker}**")
-                        
-                        # News Section FIRST (Per your request to see it works)
-                        with st.expander("📰 Latest News Headlines (Live)", expanded=True):
-                            st.write(data.get('recent_news'))
-
                         st.markdown("---")
                         
-                        # Top Metrics Bar
                         m1, m2, m3, m4 = st.columns(4)
                         m1.metric("Price", f"{data.get('currency')} {data.get('price')}")
                         m2.metric("PEG Ratio", str(data.get('peg_ratio')))
@@ -346,6 +322,10 @@ if submit_btn:
                         m4.metric("Market Cap", str(data.get('market_cap')))
                         
                         st.markdown(response.text)
+                        
+                        with st.expander("📰 View News Source (Google RSS)"):
+                            st.write(data.get('recent_news'))
+                        
                         break 
                         
                     except Exception as e:
