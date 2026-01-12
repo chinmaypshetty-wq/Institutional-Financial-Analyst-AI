@@ -2,11 +2,13 @@ import streamlit as st
 import google.generativeai as genai
 import yfinance as yf
 import pandas as pd
+import altair as alt
 import warnings
 import re
 import requests
 import xml.etree.ElementTree as ET
 import time
+import numpy as np
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -32,7 +34,6 @@ if not user_api_key:
     st.warning("⬅️ Please enter a Google API Key in the sidebar to start.")
     st.stop()
 
-# Configure API immediately
 try:
     genai.configure(api_key=user_api_key)
 except Exception as e:
@@ -60,14 +61,12 @@ with st.sidebar:
     st.caption(f"🤖 Model: {ACTIVE_MODEL_NAME}")
 
 # ==========================================
-# 3. ENGINE: GOOGLE NEWS RSS
+# 3. ENGINE: GOOGLE NEWS RSS (Reliable)
 # ==========================================
 def get_google_news_rss(query):
     try:
-        # Strip suffix to get better news match
         clean_query = query.split('.')[0] + " stock news"
         url = f"https://news.google.com/rss/search?q={clean_query}&hl=en-US&gl=US&ceid=US:en"
-        
         response = requests.get(url, timeout=5)
         root = ET.fromstring(response.content)
         headlines = []
@@ -83,7 +82,6 @@ def get_google_news_rss(query):
 # 4. ENGINE: TICKER RESOLVER (AUTO-COMPLETE)
 # ==========================================
 def check_ticker_live(ticker):
-    """Returns True if ticker exists on Yahoo, False otherwise."""
     try:
         price = yf.Ticker(ticker).fast_info.last_price
         return price is not None and price > 0
@@ -91,54 +89,36 @@ def check_ticker_live(ticker):
         return False
 
 def search_yahoo_ticker(query):
-    """
-    Uses Yahoo's own Auto-Complete API to find the ticker.
-    Fixes 'Apis India' -> 'APIS.NS' without guessing.
-    """
     try:
         url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}"
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(url, headers=headers, timeout=5)
         data = response.json()
-        
         if 'quotes' in data and len(data['quotes']) > 0:
-            # Return the first symbol found
             return data['quotes'][0]['symbol']
-    except:
-        pass
+    except: pass
     return None
 
-# HARDCODED OVERRIDES (For instant speed on giants)
 COMMON_MAPPING = {
     "APPLE": "AAPL", "NETFLIX": "NFLX", "GOOGLE": "GOOGL", "AMAZON": "AMZN",
     "TESLA": "TSLA", "MICROSOFT": "MSFT", "META": "META", "NVIDIA": "NVDA",
-    "GENERAL MOTORS": "GM", "FORD": "F",
-    "LIC": "LICI.NS", "LICI": "LICI.NS",
+    "GENERAL MOTORS": "GM", "FORD": "F", "LIC": "LICI.NS", "LICI": "LICI.NS",
     "TATA STEEL": "TATASTEEL.NS", "RELIANCE": "RELIANCE.NS",
-    "HDFC": "HDFCBANK.NS", "INFOSYS": "INFY.NS",
-    "NALCO": "NATIONALUM.NS", 
+    "HDFC": "HDFCBANK.NS", "INFOSYS": "INFY.NS", "NALCO": "NATIONALUM.NS", 
     "GOLDEN DEEPS": "GED.AX", "COMMBANK": "CBA.AX", "ANZ": "ANZ.AX"
 }
 
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
     clean_input = user_input.strip().upper()
-    
-    # 1. HARDCODED MAP
-    if clean_input in COMMON_MAPPING:
-        return COMMON_MAPPING[clean_input]
-
-    # 2. DIRECT CHECK (User typed 'APIS.NS')
+    if clean_input in COMMON_MAPPING: return COMMON_MAPPING[clean_input]
     if check_ticker_live(clean_input): return clean_input
     if check_ticker_live(clean_input + ".AX"): return clean_input + ".AX"
     if check_ticker_live(clean_input + ".NS"): return clean_input + ".NS"
-
-    # 3. YAHOO AUTO-COMPLETE (The New Fix for "Prime Focus", "Apis India")
+    
     search_result = search_yahoo_ticker(user_input)
-    if search_result and check_ticker_live(search_result):
-        return search_result
+    if search_result and check_ticker_live(search_result): return search_result
 
-    # 4. AI FALLBACK (Last Resort)
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
         prompt = f"What is the exact Yahoo Finance ticker for '{user_input}'? Return ONLY the symbol."
@@ -146,172 +126,202 @@ def resolve_ticker(user_input):
         ai_ticker = response.text.strip().upper().replace(" ", "").replace("`", "")
         if check_ticker_live(ai_ticker): return ai_ticker
     except: pass
-
     return clean_input
 
 # ==========================================
-# 5. DATA ENGINE: STEALTH MODE (Unchanged)
+# 5. DATA ENGINE: DEEP DIVE (MATH & PREDICTION)
 # ==========================================
-def calculate_cagr(series, years):
+def find_col(df, candidates):
+    for c in candidates:
+        matches = [col for col in df.columns if c in col]
+        if matches: return matches[0]
+    return None
+
+def safe_cagr(start, end, years):
+    """Handles negative base values intelligently for authentic verdicts."""
+    if start is None or end is None or years == 0: return None
     try:
-        if len(series) < years + 1: return None
-        current = float(series.iloc[0])
-        past = float(series.iloc[years])
-        if past <= 0: return "N/A (Neg Base)"
-        if current <= 0: return "N/A (Neg Current)"
-        return round(((current / past)**(1/years) - 1) * 100, 2)
+        s, e = float(start), float(end)
+        if s == 0: return None # Div by zero
+        
+        # Scenario 1: Profitable Growth (Both +)
+        if s > 0 and e > 0:
+            return round(((e / s)**(1/years) - 1) * 100, 2)
+        
+        # Scenario 2: Turnaround (Negative -> Positive)
+        if s < 0 and e > 0:
+            return "TURNAROUND (Loss to Profit) 🚀"
+            
+        # Scenario 3: Deterioration (Positive -> Negative)
+        if s > 0 and e < 0:
+            return "COLLAPSE (Profit to Loss) ⚠️"
+            
+        # Scenario 4: Reducing Losses (Negative -> Less Negative)
+        if s < 0 and e < 0 and e > s:
+            return "IMPROVING (Losses Narrowing) 📈"
+            
+        return "N/A"
     except: return None
 
 @st.cache_data(ttl=3600) 
-def get_garp_data(ticker_symbol):
+def get_institutional_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # 1. PRICE (Fast Info)
-    current_price = 0
-    mcap = 0
-    currency = "USD"
-    
+    # 1. CORE PRICE (Fast)
     try:
         current_price = stock.fast_info.last_price
         mcap = stock.fast_info.market_cap
         currency = stock.fast_info.currency
     except:
-        return {"error": f"Could not find live data for '{ticker_symbol}'. Is the ticker correct?"}
+        return {"error": f"Could not find live data for '{ticker_symbol}'."}
 
-    # 2. FINANCIALS
+    # 2. FINANCIAL STATEMENTS (The Truth)
     try:
-        financials = stock.financials
-        cashflow = stock.cashflow
-        balance_sheet = stock.balance_sheet
-        fin_T = financials.T if not financials.empty else pd.DataFrame()
-        if not fin_T.empty: fin_T.sort_index(ascending=False, inplace=True)
+        fin = stock.financials.T
+        bal = stock.balance_sheet.T
+        cash = stock.cashflow.T
+        
+        # Sort descending (Newest first)
+        for df in [fin, bal, cash]:
+            if not df.empty: df.sort_index(ascending=False, inplace=True)
     except:
         return {"error": "Financial statements unavailable."}
 
-    # 3. INFO (Lazy)
-    info = {}
-    try: info = stock.info
-    except: pass 
-    sector = info.get('sector', 'Unknown')
-
-    # 4. METRICS
-    growth_data = {}
-    if not fin_T.empty:
-        rev_col = next((c for c in fin_T.columns if 'Total Revenue' in c or 'Revenue' in c), None)
-        eps_col = next((c for c in fin_T.columns if 'Basic EPS' in c or 'Net Income' in c), None)
+    # 3. KPI CALCULATOR (Math Engine)
+    kpis = {}
+    raw_txt = "Financial Data Unavailable."
+    
+    if not fin.empty:
+        # Columns
+        rev_c = find_col(fin, ['Total Revenue', 'Revenue'])
+        eps_c = find_col(fin, ['Basic EPS', 'Diluted EPS'])
+        ni_c  = find_col(fin, ['Net Income', 'Net Income Common'])
         
-        for yr in [3, 5, 7]:
-            growth_data[f'sales_cagr_{yr}y'] = calculate_cagr(fin_T[rev_col], yr) if rev_col else "N/A"
-            growth_data[f'eps_cagr_{yr}y'] = calculate_cagr(fin_T[eps_col], yr) if eps_col else "N/A"
+        # RAW HISTORY GENERATOR (For AI Synthesis)
+        raw_txt = "### 5-YEAR FINANCIAL TREND:\n"
+        try:
+            subset = fin.head(5)
+            for d, row in subset.iterrows():
+                d_str = d.strftime('%Y') if hasattr(d, 'strftime') else str(d)[:4]
+                r = row.get(rev_c, 0)
+                e = row.get(eps_c, 0)
+                raw_txt += f"- {d_str}: Revenue {r:,.0f}, EPS {e:.2f}\n"
+        except: pass
 
-    # Earnings Quality
-    earnings_quality_msg = "Unknown"
+        # CAGR CALCULATION
+        if rev_c:
+            kpis['sales_cagr_3y'] = safe_cagr(fin[rev_c].iloc[3], fin[rev_c].iloc[0], 3) if len(fin) > 3 else "N/A"
+            kpis['sales_cagr_5y'] = safe_cagr(fin[rev_c].iloc[5], fin[rev_c].iloc[0], 5) if len(fin) > 5 else "N/A"
+        
+        if eps_c:
+            kpis['eps_cagr_3y'] = safe_cagr(fin[eps_c].iloc[3], fin[eps_c].iloc[0], 3) if len(fin) > 3 else "N/A"
+            kpis['eps_cagr_5y'] = safe_cagr(fin[eps_c].iloc[5], fin[eps_c].iloc[0], 5) if len(fin) > 5 else "N/A"
+
+    # 4. VALUATION & HEALTH (Manual Calc)
+    # PEG Ratio
     try:
-        cf_T = cashflow.T
-        if not cf_T.empty:
-            cf_T.sort_index(ascending=False, inplace=True)
-            ocf = next((c for c in cf_T.columns if 'Operating' in c), None)
-            ni = next((c for c in fin_T.columns if 'Net Income' in c), None)
-            if ocf and ni:
-                if float(cf_T.iloc[0][ocf]) > float(fin_T.iloc[0][ni]):
-                    earnings_quality_msg = "High (Cash > Profit)"
-                else:
-                    earnings_quality_msg = "Low (Profit > Cash) ⚠️"
+        eps_ttm = fin.iloc[0][eps_c]
+        pe = current_price / eps_ttm if eps_ttm > 0 else 0
+        
+        # Use 3Y Growth for PEG if available
+        g = kpis.get('eps_cagr_3y')
+        if isinstance(g, (int, float)) and g > 0:
+            kpis['peg'] = round(pe / g, 2)
+        else:
+            kpis['peg'] = "N/A (No Growth/Losses)"
+        kpis['pe'] = round(pe, 2)
+    except: 
+        kpis['peg'] = "N/A"
+        kpis['pe'] = "N/A"
+
+    # Debt/Equity & ROE
+    try:
+        total_debt = bal.iloc[0][find_col(bal, ['Total Debt'])]
+        total_equity = bal.iloc[0][find_col(bal, ['Stockholders Equity'])]
+        net_income = fin.iloc[0][ni_c]
+        
+        kpis['debt_equity'] = round(total_debt / total_equity, 2)
+        kpis['roe'] = round((net_income / total_equity) * 100, 2)
+    except:
+        kpis['debt_equity'] = "N/A"
+        kpis['roe'] = "N/A"
+
+    # Earnings Quality (OCF vs NI)
+    try:
+        ocf = cash.iloc[0][find_col(cash, ['Operating Cash Flow', 'Operating'])]
+        ni = fin.iloc[0][ni_c]
+        kpis['quality'] = "High (Cash > Profit) ✅" if ocf > ni else "Low (Profit > Cash) ⚠️"
+    except:
+        kpis['quality'] = "Unknown"
+
+    # 5. CHART DATA (Altair)
+    chart_data = None
+    try:
+        hist = stock.history(period="2y")
+        if not hist.empty:
+            hist = hist.reset_index()
+            chart_data = hist[['Date', 'Close', 'Volume']]
     except: pass
 
     # Trend
-    trend_msg = "Unknown"
     try:
-        hist_long = stock.history(period="1y")
-        if len(hist_long) > 200:
-            sma = hist_long['Close'].rolling(200).mean().iloc[-1]
-            trend_msg = "Bullish (Above 200DMA) 🟢" if current_price > sma else "Bearish (Below 200DMA) 🔴"
-    except: pass
-
-    # 5. REPAIR KIT
-    repaired = {}
-    
-    try:
-        ni = fin_T.iloc[0][next(c for c in fin_T.columns if 'Net Income' in c)]
-        eq = balance_sheet.loc['Stockholders Equity'].iloc[0]
-        repaired['roe'] = round((float(ni) / float(eq)) * 100, 2)
-    except: repaired['roe'] = info.get('returnOnEquity', "N/A")
-
-    try:
-        debt = balance_sheet.loc['Total Debt'].iloc[0]
-        eq = balance_sheet.loc['Stockholders Equity'].iloc[0]
-        repaired['debt_to_equity'] = round(float(debt) / float(eq), 2)
-    except: repaired['debt_to_equity'] = info.get('debtToEquity', "N/A")
-
-    try:
-        eps = fin_T.iloc[0][next(c for c in fin_T.columns if 'Basic EPS' in c)]
-        pe = current_price / float(eps)
-        repaired['pe_ratio'] = round(pe, 2)
-        g = growth_data.get('eps_cagr_3y')
-        if isinstance(g, (int, float)) and g > 0:
-            repaired['peg_ratio'] = round(pe / g, 2)
-        else:
-            repaired['peg_ratio'] = info.get('pegRatio', "N/A")
-    except: 
-        repaired['pe_ratio'] = info.get('trailingPE', "N/A")
-        repaired['peg_ratio'] = info.get('pegRatio', "N/A")
-
-    mcap_fmt = f"{mcap / 1_000_000:,.2f} M" if isinstance(mcap, (int, float)) else "N/A"
+        sma200 = hist['Close'].rolling(200).mean().iloc[-1]
+        kpis['trend'] = "Uptrend (Above 200DMA) 🟢" if current_price > sma200 else "Downtrend (Below 200DMA) 🔴"
+    except: kpis['trend'] = "Neutral"
 
     return {
         "ticker": ticker_symbol.upper(),
-        "sector": sector,
-        "price": round(current_price, 2),
+        "price": current_price,
         "currency": currency,
-        "market_cap": mcap_fmt,
-        "peg_ratio": repaired.get('peg_ratio'),
-        "pe_ratio": repaired.get('pe_ratio'),
-        "debt_to_equity": repaired.get('debt_to_equity'),
-        "roe": repaired.get('roe'),
-        "earnings_quality": earnings_quality_msg,
-        "technical_trend": trend_msg,
-        "recent_news": get_google_news_rss(ticker_symbol),
-        **growth_data
+        "mcap": mcap,
+        "kpis": kpis,
+        "raw_history": raw_txt,
+        "chart_data": chart_data,
+        "news": get_google_news_rss(ticker_symbol)
     }
 
 # ==========================================
-# 6. SYSTEM PROMPT
+# 6. SYSTEM PROMPT: THE HEDGE FUND MANAGER
 # ==========================================
 sys_instruction = """
 ### ROLE
-Senior Portfolio Manager. Skeptical, data-driven, focused on **risk-adjusted returns**.
+Institutional Portfolio Manager. You prioritize **Predictive Analysis** over just reading past data.
 
-### STRATEGY (STRICT GARP CRITERIA)
-1. **EPS Growth:** 3Y > 20% AND 5Y > 20% AND 7Y > 20%.
-2. **Sales Growth:** 3Y > 15% AND 5Y > 15% AND 7Y > 15%.
-3. **Valuation:** PEG Ratio < 1.0 (Strict).
-4. **Health:** Debt/Equity < 1.0 (Strict).
-5. **Profitability:** PE Ratio > 0.
-6. **Size:** Market Capitalization > 5000 Million.
-7. **Quality:** Cash Flow > Net Income.
-8. **Trend:** Prefer "Bullish" (Above 200DMA).
-9. **Sentiment:** Check 'recent_news' for red flags.
+### 1. FOUNDATIONAL KPIs (GARP)
+Evaluate strictly but intelligently:
+* **Growth:** 3Y/5Y EPS & Sales > 15-20%. (Note: If CAGR says "TURNAROUND", this is a POSITIVE signal).
+* **Valuation:** PEG < 1.0 is ideal. If PE is high but Growth is massive, justify it.
+* **Health:** Debt/Equity < 1.0. (Exceptions: Banks/Utilities).
+* **Quality:** Cash Flow > Net Income.
 
-### OUTPUT FORMAT (Markdown)
-## Institutional Memo: {Ticker}
-**Sector:** {Sector} | **Trend:** {Trend}
-**Verdict:** [STRONG BUY | WATCHLIST | HARD PASS]
+### 2. PREDICTIVE SYNTHESIS (Crucial)
+Look at the "Raw 5-Year Financial History". 
+* Is the momentum accelerating or slowing? 
+* Are margins expanding (EPS growing faster than Sales)?
+* **Do not fail a stock just because one metric is N/A.** If the *trend* is good, approve it.
+
+### OUTPUT FORMAT
+## 🦅 Institutional Verdict: {Ticker}
+**Rating:** [STRONG BUY | BUY | WATCHLIST | SELL]
+**Risk Level:** [Low/Medium/High]
 
 ### 1. Executive Thesis
-(State the core argument clearly based on the 9 criteria above.)
+(Synthesis of Growth, Value, and Momentum. Explain the "Story" of the stock.)
 
 ### 2. Quantitative Scorecard
-| Metric | Value | Target | Status |
-| :--- | :--- | :--- | :--- |
-| **EPS Growth (3Y/5Y/7Y)** | {vals}% | > 20% each | [PASS/FAIL] |
-| **Sales Growth (3Y/5Y/7Y)** | {vals}% | > 15% each | [PASS/FAIL] |
-| **PEG Ratio** | {val} | < 1.0 | [PASS/FAIL] |
-| **Debt/Equity** | {val} | < 1.0 | [PASS/FAIL/SKIP] |
-| **PE Ratio** | {val} | > 0 | [PASS/FAIL] |
-| **Market Cap** | {val} | > 5000 M | [PASS/FAIL] |
+| Metric | Value | Verdict |
+| :--- | :--- | :--- |
+| **EPS Growth (3Y/5Y)** | {vals} | [Pass/Fail/Turnaround] |
+| **Sales Growth (3Y/5Y)** | {vals} | [Pass/Fail] |
+| **PEG Ratio** | {val} | [Undervalued/Overvalued] |
+| **ROE** | {val}% | [Efficient/Inefficient] |
+| **Debt/Equity** | {val} | [Safe/Risky] |
+| **Earnings Quality** | {val} | [High/Low] |
 
-### 3. Risk & Portfolio Fit
-(Comment on Quality, Trend, and News. Why buy/avoid now?)
+### 3. Predictive Outlook
+* **Bull Case:** (What goes right?)
+* **Bear Case:** (What goes wrong?)
+* **Trend Analysis:** (Comment on the price vs 200DMA).
 """
 
 # ==========================================
@@ -322,7 +332,7 @@ st.title("Institutional Financial Analyst AI")
 with st.form(key='analysis_form'):
     col1, col2 = st.columns([3, 1])
     with col1:
-        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Prime Focus, Apis India, Commonwealth Bank").strip()
+        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Netflix, LIC, Golden Deeps").strip()
     with col2:
         st.write("")
         st.write("")
@@ -330,50 +340,43 @@ with st.form(key='analysis_form'):
 
 if submit_btn:
     if not user_input:
-        st.warning("Please enter a company name or ticker.")
+        st.warning("Please enter a company name.")
     else:
-        with st.spinner(f"🔍 Resolving ticker for '{user_input}'..."):
-            resolved_ticker = resolve_ticker(user_input)
+        with st.spinner(f"🔍 Resolving '{user_input}'..."):
+            ticker = resolve_ticker(user_input)
             
-            if not check_ticker_live(resolved_ticker):
-                st.error(f"❌ Could not find data for '{resolved_ticker}'.")
-                st.caption("Tip: Try searching for the exact ticker (e.g. APIS.NS, PFOCUS.NS).")
+            if not check_ticker_live(ticker):
+                st.error(f"❌ Could not find data for '{ticker}'.")
+                st.caption("Try adding the suffix manually (e.g. .NS, .AX).")
             else:
-                st.success(f"✅ Analysis Target: **{resolved_ticker}**")
-        
-                with st.spinner(f"📡 Analyzing {resolved_ticker} (Financials + News)..."):
-                    data = get_garp_data(resolved_ticker)
+                st.success(f"✅ Target: **{ticker}**")
+                
+                with st.spinner("📡 Calculating KPIs & Predicting Trends..."):
+                    data = get_institutional_data(ticker)
                     
                     if "error" in data:
-                        st.error(f"❌ {data['error']}")
+                        st.error(data['error'])
                     else:
-                        max_retries = 3
-                        for attempt in range(max_retries):
-                            try:
-                                model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
-                                response = model.generate_content(f"Analyze {resolved_ticker} using this data: {data}")
-                                
-                                st.markdown("---")
-                                
-                                m1, m2, m3, m4 = st.columns(4)
-                                m1.metric("Price", f"{data.get('currency')} {data.get('price')}")
-                                m2.metric("PEG Ratio", str(data.get('peg_ratio')))
-                                m3.metric("Trend", data.get('technical_trend'))
-                                m4.metric("Market Cap", str(data.get('market_cap')))
-                                
-                                st.markdown(response.text)
-                                
-                                with st.expander("📰 View News Source (Google RSS)"):
-                                    st.write(data.get('recent_news'))
-                                
-                                break 
-                                
-                            except Exception as e:
-                                if "429" in str(e):
-                                    if attempt < max_retries - 1:
-                                        time.sleep(5)
-                                    else:
-                                        st.error("❌ Google AI Quota Exceeded. Try again later.")
-                                else:
-                                    st.error(f"AI Error: {e}")
-                                    break
+                        # 1. METRICS
+                        k = data['kpis']
+                        m1, m2, m3, m4 = st.columns(4)
+                        m1.metric("Price", f"{data['currency']} {data['price']:,.2f}")
+                        m2.metric("PEG Ratio", str(k.get('peg')))
+                        m3.metric("ROE", f"{k.get('roe')}%")
+                        m4.metric("Trend", k.get('trend'))
+                        
+                        # 2. CHART (Visual Superiority)
+                        if data['chart_data'] is not None:
+                            chart = alt.Chart(data['chart_data']).mark_line(color='#2ecc71').encode(
+                                x='Date', y='Close', tooltip=['Date', 'Close', 'Volume']
+                            ).properties(height=300)
+                            st.altair_chart(chart, use_container_width=True)
+
+                        # 3. AI ANALYSIS
+                        try:
+                            model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
+                            prompt = f"Analyze {ticker}. Financials: {data['raw_history']}. KPIs: {data['kpis']}. News: {data['news']}"
+                            response = model.generate_content(prompt)
+                            st.markdown(response.text)
+                        except Exception as e:
+                            st.error(f"AI Synthesis Failed: {e}")
