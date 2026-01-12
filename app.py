@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 # ==========================================
 # 1. CONFIGURATION
 # ==========================================
-MY_API_KEY = "st.secrets["GOOGLE_API_KEY"]"
+MY_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 try:
     genai.configure(api_key=MY_API_KEY)
