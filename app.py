@@ -60,12 +60,12 @@ with st.sidebar:
     st.caption(f"🤖 Model: {ACTIVE_MODEL_NAME}")
 
 # ==========================================
-# 3. ENGINE: GOOGLE NEWS RSS (Targeted)
+# 3. ENGINE: GOOGLE NEWS RSS
 # ==========================================
 def get_google_news_rss(query):
     try:
-        # We keep the suffix (e.g. .NS) to ensure we get news for the RIGHT country
-        clean_query = f"{query} stock news"
+        # Strip suffix to get better news match
+        clean_query = query.split('.')[0] + " stock news"
         url = f"https://news.google.com/rss/search?q={clean_query}&hl=en-US&gl=US&ceid=US:en"
         
         response = requests.get(url, timeout=5)
@@ -80,7 +80,7 @@ def get_google_news_rss(query):
         return "News unavailable."
 
 # ==========================================
-# 4. ENGINE: TICKER RESOLVER (HARDCODED MAP)
+# 4. ENGINE: TICKER RESOLVER (AUTO-COMPLETE)
 # ==========================================
 def check_ticker_live(ticker):
     """Returns True if ticker exists on Yahoo, False otherwise."""
@@ -90,62 +90,67 @@ def check_ticker_live(ticker):
     except:
         return False
 
-# THE "INSTANT FIX" DICTIONARY
+def search_yahoo_ticker(query):
+    """
+    Uses Yahoo's own Auto-Complete API to find the ticker.
+    Fixes 'Apis India' -> 'APIS.NS' without guessing.
+    """
+    try:
+        url = f"https://query2.finance.yahoo.com/v1/finance/search?q={query}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=5)
+        data = response.json()
+        
+        if 'quotes' in data and len(data['quotes']) > 0:
+            # Return the first symbol found
+            return data['quotes'][0]['symbol']
+    except:
+        pass
+    return None
+
+# HARDCODED OVERRIDES (For instant speed on giants)
 COMMON_MAPPING = {
-    # USA
     "APPLE": "AAPL", "NETFLIX": "NFLX", "GOOGLE": "GOOGL", "AMAZON": "AMZN",
     "TESLA": "TSLA", "MICROSOFT": "MSFT", "META": "META", "NVIDIA": "NVDA",
     "GENERAL MOTORS": "GM", "FORD": "F",
-    
-    # INDIA (Correcting Common Mistakes)
-    "LIC": "LICI.NS", "LIC.NS": "LICI.NS", "LICI": "LICI.NS", # Fixes LIC issue
+    "LIC": "LICI.NS", "LICI": "LICI.NS",
     "TATA STEEL": "TATASTEEL.NS", "RELIANCE": "RELIANCE.NS",
     "HDFC": "HDFCBANK.NS", "INFOSYS": "INFY.NS",
-    "NALCO": "NATIONALUM.NS", "NATIONAL ALUMINIUM": "NATIONALUM.NS",
-    "PG FOILS": "PGFOLS.NS", "PGFOILS": "PGFOLS.NS",
-    
-    # AUSTRALIA
-    "GOLDEN DEEPS": "GED.AX", "GOLDEN DEEPS LTD": "GED.AX",
-    "ENERGY ACTION": "EAX.AX", "EAX": "EAX.AX",
-    "COMMBANK": "CBA.AX", "CBA": "CBA.AX",
-    "ANZ": "ANZ.AX", "NAB": "NAB.AX", "BHP": "BHP.AX",
-    "RIO": "RIO.AX", "TELSTRA": "TLS.AX", "WOOLWORTHS": "WOW.AX"
+    "NALCO": "NATIONALUM.NS", 
+    "GOLDEN DEEPS": "GED.AX", "COMMBANK": "CBA.AX", "ANZ": "ANZ.AX"
 }
 
 @st.cache_data(ttl=3600) 
 def resolve_ticker(user_input):
     clean_input = user_input.strip().upper()
     
-    # 1. HARDCODED MAP (Fastest)
+    # 1. HARDCODED MAP
     if clean_input in COMMON_MAPPING:
         return COMMON_MAPPING[clean_input]
 
-    # 2. DIRECT CHECK (If user typed 'TSLA' or 'LICI.NS')
+    # 2. DIRECT CHECK (User typed 'APIS.NS')
     if check_ticker_live(clean_input): return clean_input
-    # Try adding country suffixes automatically
     if check_ticker_live(clean_input + ".AX"): return clean_input + ".AX"
     if check_ticker_live(clean_input + ".NS"): return clean_input + ".NS"
 
-    # 3. AI GUESS (Fallback)
+    # 3. YAHOO AUTO-COMPLETE (The New Fix for "Prime Focus", "Apis India")
+    search_result = search_yahoo_ticker(user_input)
+    if search_result and check_ticker_live(search_result):
+        return search_result
+
+    # 4. AI FALLBACK (Last Resort)
     try:
         model = genai.GenerativeModel(ACTIVE_MODEL_NAME)
-        prompt = (
-            f"What is the exact Yahoo Finance ticker for '{user_input}'? "
-            "Examples: 'Netflix'->NFLX, 'Tata Steel'->TATASTEEL.NS, 'Energy Action'->EAX.AX. "
-            "Return ONLY the ticker symbol. No text."
-        )
+        prompt = f"What is the exact Yahoo Finance ticker for '{user_input}'? Return ONLY the symbol."
         response = model.generate_content(prompt)
         ai_ticker = response.text.strip().upper().replace(" ", "").replace("`", "")
-        
         if check_ticker_live(ai_ticker): return ai_ticker
-        if check_ticker_live(ai_ticker + ".AX"): return ai_ticker + ".AX"
-        if check_ticker_live(ai_ticker + ".NS"): return ai_ticker + ".NS"
     except: pass
 
     return clean_input
 
 # ==========================================
-# 5. DATA ENGINE: STEALTH MODE
+# 5. DATA ENGINE: STEALTH MODE (Unchanged)
 # ==========================================
 def calculate_cagr(series, years):
     try:
@@ -161,7 +166,7 @@ def calculate_cagr(series, years):
 def get_garp_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # 1. PRICE (Use fast_info to bypass 'info' block)
+    # 1. PRICE (Fast Info)
     current_price = 0
     mcap = 0
     currency = "USD"
@@ -183,7 +188,7 @@ def get_garp_data(ticker_symbol):
     except:
         return {"error": "Financial statements unavailable."}
 
-    # 3. INFO (Lazy Load)
+    # 3. INFO (Lazy)
     info = {}
     try: info = stock.info
     except: pass 
@@ -226,26 +231,22 @@ def get_garp_data(ticker_symbol):
     # 5. REPAIR KIT
     repaired = {}
     
-    # ROE
     try:
         ni = fin_T.iloc[0][next(c for c in fin_T.columns if 'Net Income' in c)]
         eq = balance_sheet.loc['Stockholders Equity'].iloc[0]
         repaired['roe'] = round((float(ni) / float(eq)) * 100, 2)
     except: repaired['roe'] = info.get('returnOnEquity', "N/A")
 
-    # Debt/Equity
     try:
         debt = balance_sheet.loc['Total Debt'].iloc[0]
         eq = balance_sheet.loc['Stockholders Equity'].iloc[0]
         repaired['debt_to_equity'] = round(float(debt) / float(eq), 2)
     except: repaired['debt_to_equity'] = info.get('debtToEquity', "N/A")
 
-    # PE & PEG
     try:
         eps = fin_T.iloc[0][next(c for c in fin_T.columns if 'Basic EPS' in c)]
         pe = current_price / float(eps)
         repaired['pe_ratio'] = round(pe, 2)
-        
         g = growth_data.get('eps_cagr_3y')
         if isinstance(g, (int, float)) and g > 0:
             repaired['peg_ratio'] = round(pe / g, 2)
@@ -321,7 +322,7 @@ st.title("Institutional Financial Analyst AI")
 with st.form(key='analysis_form'):
     col1, col2 = st.columns([3, 1])
     with col1:
-        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Netflix, LIC, Golden Deeps").strip()
+        user_input = st.text_input("Enter Company or Ticker", placeholder="e.g., Prime Focus, Apis India, Commonwealth Bank").strip()
     with col2:
         st.write("")
         st.write("")
@@ -334,11 +335,9 @@ if submit_btn:
         with st.spinner(f"🔍 Resolving ticker for '{user_input}'..."):
             resolved_ticker = resolve_ticker(user_input)
             
-            # Validation Step
             if not check_ticker_live(resolved_ticker):
                 st.error(f"❌ Could not find data for '{resolved_ticker}'.")
-                st.info(f"The AI could not resolve '{user_input}' to a valid symbol.")
-                st.caption("Please try searching for the EXACT ticker symbol (e.g., NFLX, LICI.NS, GED.AX).")
+                st.caption("Tip: Try searching for the exact ticker (e.g. APIS.NS, PFOCUS.NS).")
             else:
                 st.success(f"✅ Analysis Target: **{resolved_ticker}**")
         
