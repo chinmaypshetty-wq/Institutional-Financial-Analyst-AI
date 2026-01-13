@@ -255,26 +255,14 @@ def get_institutional_data(ticker_symbol):
         kpis['quality'] = "Unknown"
 
     # 5. CHART DATA
-                        if data.get('chart_data') is not None:
-                            # Create the chart with specific axis formatting
-                            chart = alt.Chart(data['chart_data']).mark_line(color='#2ecc71').encode(
-                                # X-AXIS: Format as "Jan 2024" (%b %Y)
-                                x=alt.X('Date:T', 
-                                        axis=alt.Axis(format='%b %Y', title="Date", labelAngle=-45)),
-                                
-                                # Y-AXIS: Dynamic Title "Price (INR)" + Comma format
-                                y=alt.Y('Close:Q', 
-                                        axis=alt.Axis(title=f"Price ({data.get('currency', 'USD')})", format=",.2f"),
-                                        scale=alt.Scale(zero=False)),
-                                
-                                # TOOLTIP: Hover details
-                                tooltip=[
-                                    alt.Tooltip('Date:T', format='%b %d, %Y'), 
-                                    alt.Tooltip('Close:Q', format=",.2f")
-                                ]
-                            ).properties(height=350)
-                            
-                            st.altair_chart(chart, use_container_width=True)
+        
+    chart_data = None
+    try:
+        hist = stock.history(period="2y")
+        if not hist.empty:
+            hist = hist.reset_index()
+            chart_data = hist[['Date', 'Close', 'Volume']]
+    except: pass
     # Trend
     try:
         sma200 = hist['Close'].rolling(200).mean().iloc[-1]
