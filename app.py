@@ -378,10 +378,26 @@ if submit_btn:
                         m4.metric("Trend", k.get('trend'))
                         
                         # 2. CHART (Visual Superiority)
-                        if data['chart_data'] is not None:
+                        if data.get('chart_data') is not None:
+                            # Create the chart with specific axis formatting
                             chart = alt.Chart(data['chart_data']).mark_line(color='#2ecc71').encode(
-                                x='Date', y='Close', tooltip=['Date', 'Close', 'Volume']
-                            ).properties(height=300)
+                                # X-AXIS: Force format to "Jan 2024" (%b %Y)
+                                x=alt.X('Date:T', 
+                                        axis=alt.Axis(format='%b %Y', title="Date", labelAngle=-45)),
+                                
+                                # Y-AXIS: Dynamic Title "Price (INR)" + Comma format
+                                y=alt.Y('Close:Q', 
+                                        axis=alt.Axis(title=f"Price ({data.get('currency', 'USD')})", format=",.2f"),
+                                        scale=alt.Scale(zero=False)),
+                                
+                                # TOOLTIP: Hover details
+                                tooltip=[
+                                    alt.Tooltip('Date:T', format='%b %d, %Y'), 
+                                    alt.Tooltip('Close:Q', format=",.2f"),
+                                    alt.Tooltip('Volume:Q', format=",.0f")
+                                ]
+                            ).properties(height=350)
+                            
                             st.altair_chart(chart, use_container_width=True)
 
                         # 3. AI ANALYSIS
