@@ -13,7 +13,7 @@ import numpy as np
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
-st.set_page_config(page_title="Institutional AI Analyst", page_icon="🦅", layout="wide")
+st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
@@ -55,7 +55,7 @@ def configure_valid_key(keys):
 active_key = configure_valid_key(API_KEYS)
 
 if not active_key:
-    st.error("❌ Critical Error: All API keys failed or quota exceeded. Please add valid keys to the code.")
+    st.error("Critical Error: All API keys failed or quota exceeded. Please add valid keys to the code.")
     st.stop()
 
 # ==========================================
@@ -81,7 +81,7 @@ with st.sidebar:
     st.title("🦅 Controls")
     st.success(f"System Online")
     st.caption(f"Model: {ACTIVE_MODEL_NAME}")
-    st.caption("API Status: Connected ✅")
+    st.caption("API Status: Connected")
     st.markdown("---")
 
 # ==========================================
@@ -168,9 +168,9 @@ def safe_cagr(start, end, years):
         s, e = float(start), float(end)
         if s == 0: return None # Div by zero
         if s > 0 and e > 0: return round(((e / s)**(1/years) - 1) * 100, 2)
-        if s < 0 and e > 0: return "TURNAROUND (Loss to Profit) 🚀"
-        if s > 0 and e < 0: return "COLLAPSE (Profit to Loss) ⚠️"
-        if s < 0 and e < 0 and e > s: return "IMPROVING (Losses Narrowing) 📈"
+        if s < 0 and e > 0: return "TURNAROUND (Loss to Profit) "
+        if s > 0 and e < 0: return "COLLAPSE (Profit to Loss) "
+        if s < 0 and e < 0 and e > s: return "IMPROVING (Losses Narrowing) "
         return "N/A"
     except: return None
 
@@ -257,7 +257,7 @@ def get_institutional_data(ticker_symbol):
     try:
         ocf = cash.iloc[0][find_col(cash, ['Operating Cash Flow', 'Operating'])]
         ni = fin.iloc[0][ni_c]
-        kpis['quality'] = "High (Cash > Profit) ✅" if ocf > ni else "Low (Profit > Cash) ⚠️"
+        kpis['quality'] = "High (Cash > Profit) " if ocf > ni else "Low (Profit > Cash) "
     except:
         kpis['quality'] = "Unknown"
 
@@ -273,7 +273,7 @@ def get_institutional_data(ticker_symbol):
     # Trend
     try:
         sma200 = hist['Close'].rolling(200).mean().iloc[-1]
-        kpis['trend'] = "Uptrend (Above 200DMA) 🟢" if current_price > sma200 else "Downtrend (Below 200DMA) 🔴"
+        kpis['trend'] = "Uptrend (Above 200DMA) " if current_price > sma200 else "Downtrend (Below 200DMA) "
     except: kpis['trend'] = "Neutral"
 
     return {
@@ -308,7 +308,7 @@ Look at the "Raw 5-Year Financial History".
 * **Do not fail a stock just because one metric is N/A.** If the *trend* is good, approve it.
 
 ### OUTPUT FORMAT
-## 🦅 Institutional Verdict: {Ticker}
+## Institutional Verdict: {Ticker}
 **Rating:** [STRONG BUY | BUY | WATCHLIST | SELL]
 **Risk Level:** [Low/Medium/High]
 
@@ -343,7 +343,7 @@ with st.form(key='analysis_form'):
     with col2:
         st.write("")
         st.write("")
-        submit_btn = st.form_submit_button("🚀 Run Analysis", type="primary", use_container_width=True)
+        submit_btn = st.form_submit_button("Run Analysis", type="primary", use_container_width=True)
 
 if submit_btn:
     if not user_input:
@@ -353,12 +353,12 @@ if submit_btn:
             ticker = resolve_ticker(user_input)
             
             if not check_ticker_live(ticker):
-                st.error(f"❌ Could not find data for '{ticker}'.")
+                st.error(f"Could not find data for '{ticker}'.")
                 st.caption("Try adding the suffix manually (e.g. .NS, .AX).")
             else:
-                st.success(f"✅ Target: **{ticker}**")
+                st.success(f"Target: **{ticker}**")
                 
-                with st.spinner("📡 Calculating KPIs & Predicting Trends..."):
+                with st.spinner("Calculating KPIs & Predicting Trends..."):
                     data = get_institutional_data(ticker)
                     
                     if "error" in data:
