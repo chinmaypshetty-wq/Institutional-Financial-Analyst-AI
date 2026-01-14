@@ -22,22 +22,40 @@ div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. SIDEBAR: API KEY & CONTROLS
+# 1. API KEY ROTATION SYSTEM (Auto-Switch)
 # ==========================================
-with st.sidebar:
-    st.title(" Controls")
-    user_api_key = st.text_input("Enter Google API Key", type="password", help="Get a free key from Google AI Studio")
-    st.markdown("---")
-    
-if not user_api_key:
-    st.info("System Status: Waiting for Key...")
-    st.warning("⬅️ Please enter a Google API Key in the sidebar to start.")
-    st.stop()
+# ------------------------------------------------------------------
+# PASTE YOUR 4 KEYS HERE. The app will try them one by one.
+# ------------------------------------------------------------------
+API_KEYS = [
+    "AIzaSyBwJo3xgSYh6jcliUgqEzXJRe38WLyktrw",  # Key 1
+    "AIzaSyA37SzRqfa9VpgEbVGB2lD1L3Dpe-guOWo",  # Key 2
+    "YOUR_KEY_3_HERE",                           # Key 3 (Optional)
+    "YOUR_KEY_4_HERE"                            # Key 4 (Optional)
+]
 
-try:
-    genai.configure(api_key=user_api_key)
-except Exception as e:
-    st.error(f"Invalid API Key: {e}")
+@st.cache_resource
+def configure_valid_key(keys):
+    """
+    Tries each key in the list. Returns the first one that works.
+    This prevents the app from crashing if one key hits a quota limit.
+    """
+    for key in keys:
+        if "YOUR_KEY" in key: continue # Skip placeholders
+        try:
+            genai.configure(api_key=key)
+            # Test the key by listing models (Lightweight call)
+            list(genai.list_models())
+            return key
+        except Exception:
+            continue # If key fails, loop to the next one
+    return None
+
+# Initialize API
+active_key = configure_valid_key(API_KEYS)
+
+if not active_key:
+    st.error("❌ Critical Error: All API keys failed or quota exceeded. Please add valid keys to the code.")
     st.stop()
 
 # ==========================================
@@ -57,8 +75,14 @@ def get_valid_model_name():
         return "models/gemini-pro"
 
 ACTIVE_MODEL_NAME = get_valid_model_name()
+
+# Sidebar Control (Cleaned up)
 with st.sidebar:
-    st.caption(f" Model: {ACTIVE_MODEL_NAME}")
+    st.title("🦅 Controls")
+    st.success(f"System Online")
+    st.caption(f"Model: {ACTIVE_MODEL_NAME}")
+    st.caption("API Status: Connected ✅")
+    st.markdown("---")
 
 # ==========================================
 # 3. ENGINE: GOOGLE NEWS RSS (Reliable)
@@ -143,23 +167,10 @@ def safe_cagr(start, end, years):
     try:
         s, e = float(start), float(end)
         if s == 0: return None # Div by zero
-        
-        # Scenario 1: Profitable Growth (Both +)
-        if s > 0 and e > 0:
-            return round(((e / s)**(1/years) - 1) * 100, 2)
-        
-        # Scenario 2: Turnaround (Negative -> Positive)
-        if s < 0 and e > 0:
-            return "TURNAROUND (Loss to Profit) "
-            
-        # Scenario 3: Deterioration (Positive -> Negative)
-        if s > 0 and e < 0:
-            return "COLLAPSE (Profit to Loss) "
-            
-        # Scenario 4: Reducing Losses (Negative -> Less Negative)
-        if s < 0 and e < 0 and e > s:
-            return "IMPROVING (Losses Narrowing) "
-            
+        if s > 0 and e > 0: return round(((e / s)**(1/years) - 1) * 100, 2)
+        if s < 0 and e > 0: return "TURNAROUND (Loss to Profit) 🚀"
+        if s > 0 and e < 0: return "COLLAPSE (Profit to Loss) ⚠️"
+        if s < 0 and e < 0 and e > s: return "IMPROVING (Losses Narrowing) 📈"
         return "N/A"
     except: return None
 
@@ -180,8 +191,6 @@ def get_institutional_data(ticker_symbol):
         fin = stock.financials.T
         bal = stock.balance_sheet.T
         cash = stock.cashflow.T
-        
-        # Sort descending (Newest first)
         for df in [fin, bal, cash]:
             if not df.empty: df.sort_index(ascending=False, inplace=True)
     except:
@@ -197,7 +206,7 @@ def get_institutional_data(ticker_symbol):
         eps_c = find_col(fin, ['Basic EPS', 'Diluted EPS'])
         ni_c  = find_col(fin, ['Net Income', 'Net Income Common'])
         
-        # RAW HISTORY GENERATOR (For AI Synthesis)
+        # RAW HISTORY GENERATOR
         raw_txt = "### 5-YEAR FINANCIAL TREND:\n"
         try:
             subset = fin.head(5)
@@ -222,8 +231,6 @@ def get_institutional_data(ticker_symbol):
     try:
         eps_ttm = fin.iloc[0][eps_c]
         pe = current_price / eps_ttm if eps_ttm > 0 else 0
-        
-        # Use 3Y Growth for PEG if available
         g = kpis.get('eps_cagr_3y')
         if isinstance(g, (int, float)) and g > 0:
             kpis['peg'] = round(pe / g, 2)
@@ -250,12 +257,11 @@ def get_institutional_data(ticker_symbol):
     try:
         ocf = cash.iloc[0][find_col(cash, ['Operating Cash Flow', 'Operating'])]
         ni = fin.iloc[0][ni_c]
-        kpis['quality'] = "High (Cash > Profit) " if ocf > ni else "Low (Profit > Cash) "
+        kpis['quality'] = "High (Cash > Profit) ✅" if ocf > ni else "Low (Profit > Cash) ⚠️"
     except:
         kpis['quality'] = "Unknown"
 
-    # 5. CHART DATA
-        
+    # 5. CHART DATA (Visual Superiority)
     chart_data = None
     try:
         hist = stock.history(period="2y")
@@ -263,10 +269,11 @@ def get_institutional_data(ticker_symbol):
             hist = hist.reset_index()
             chart_data = hist[['Date', 'Close', 'Volume']]
     except: pass
+
     # Trend
     try:
         sma200 = hist['Close'].rolling(200).mean().iloc[-1]
-        kpis['trend'] = "Uptrend (Above 200DMA) " if current_price > sma200 else "Downtrend (Below 200DMA) "
+        kpis['trend'] = "Uptrend (Above 200DMA) 🟢" if current_price > sma200 else "Downtrend (Below 200DMA) 🔴"
     except: kpis['trend'] = "Neutral"
 
     return {
@@ -301,7 +308,7 @@ Look at the "Raw 5-Year Financial History".
 * **Do not fail a stock just because one metric is N/A.** If the *trend* is good, approve it.
 
 ### OUTPUT FORMAT
-## Institutional Verdict: {Ticker}
+## 🦅 Institutional Verdict: {Ticker}
 **Rating:** [STRONG BUY | BUY | WATCHLIST | SELL]
 **Risk Level:** [Low/Medium/High]
 
@@ -336,7 +343,7 @@ with st.form(key='analysis_form'):
     with col2:
         st.write("")
         st.write("")
-        submit_btn = st.form_submit_button(" Run Analysis", type="primary", use_container_width=True)
+        submit_btn = st.form_submit_button("🚀 Run Analysis", type="primary", use_container_width=True)
 
 if submit_btn:
     if not user_input:
@@ -346,10 +353,10 @@ if submit_btn:
             ticker = resolve_ticker(user_input)
             
             if not check_ticker_live(ticker):
-                st.error(f" Could not find data for '{ticker}'.")
+                st.error(f"❌ Could not find data for '{ticker}'.")
                 st.caption("Try adding the suffix manually (e.g. .NS, .AX).")
             else:
-                st.success(f" Target: **{ticker}**")
+                st.success(f"✅ Target: **{ticker}**")
                 
                 with st.spinner("📡 Calculating KPIs & Predicting Trends..."):
                     data = get_institutional_data(ticker)
@@ -367,25 +374,17 @@ if submit_btn:
                         
                         # 2. CHART (Visual Superiority)
                         if data.get('chart_data') is not None:
-                            # Create the chart with specific axis formatting
                             chart = alt.Chart(data['chart_data']).mark_line(color='#2ecc71').encode(
-                                # X-AXIS: Force format to "Jan 2024" (%b %Y)
-                                x=alt.X('Date:T', 
-                                        axis=alt.Axis(format='%b %Y', title="Date", labelAngle=-45)),
-                                
-                                # Y-AXIS: Dynamic Title "Price (INR)" + Comma format
+                                x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title="Date", labelAngle=-45)),
                                 y=alt.Y('Close:Q', 
                                         axis=alt.Axis(title=f"Price ({data.get('currency', 'USD')})", format=",.2f"),
                                         scale=alt.Scale(zero=False)),
-                                
-                                # TOOLTIP: Hover details
                                 tooltip=[
                                     alt.Tooltip('Date:T', format='%b %d, %Y'), 
                                     alt.Tooltip('Close:Q', format=",.2f"),
                                     alt.Tooltip('Volume:Q', format=",.0f")
                                 ]
                             ).properties(height=350)
-                            
                             st.altair_chart(chart, use_container_width=True)
 
                         # 3. AI ANALYSIS
