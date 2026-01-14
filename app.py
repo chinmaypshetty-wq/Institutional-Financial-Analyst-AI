@@ -78,7 +78,7 @@ ACTIVE_MODEL_NAME = get_valid_model_name()
 
 # Sidebar Control (Cleaned up)
 with st.sidebar:
-    st.title("🦅 Controls")
+    st.title("Controls")
     st.success(f"System Online")
     st.caption(f"Model: {ACTIVE_MODEL_NAME}")
     st.caption("API Status: Connected")
