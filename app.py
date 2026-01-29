@@ -23,7 +23,7 @@ st.markdown("""
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. BUTTONS - FORCE BLUE */
+    /* 2. BUTTONS - FORCE BLUE (Working) */
     button {
         background-color: #3399FF !important;
         border: 1px solid #3399FF !important;
@@ -40,7 +40,7 @@ st.markdown("""
         background-color: #1A528A !important;
     }
 
-    /* 3. INPUT BOX - BLUE BORDER & GLOW */
+    /* 3. INPUT BOX - BLUE BORDER (Working) */
     div[data-baseweb="input"] {
         border-color: #3399FF !important; 
     }
@@ -57,21 +57,24 @@ st.markdown("""
         caret-color: #3399FF !important;
     }
 
-    /* 4. SIDEBAR ALERT - DEEP PENETRATION FIX */
-    /* Target the OUTER box of the sidebar alert */
+    /* 4. SIDEBAR ALERT - THE "GRADIENT KILLER" */
+    /* Use 'background' shorthand to kill the image/gradient */
     section[data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background-color: #0D1117 !important;
+        background: #0D1117 !important; 
         border: 1px solid #30363D !important;
     }
-    /* Target the INNER text container to kill the green text */
-    section[data-testid="stSidebar"] div[data-testid="stAlert"] > div {
+    
+    /* Force the specific 'success' variant to be Black/Blue */
+    section[data-testid="stSidebar"] div[data-testid="stAlert"][data-variant="success"] {
+        background: #0D1117 !important; /* Nukes the Green Gradient */
+        border-left: 5px solid #3399FF !important;
+    }
+
+    /* Force ALL text inside the alert to be White (Overrides Green Text) */
+    section[data-testid="stSidebar"] div[data-testid="stAlert"] * {
         color: #E6EDF3 !important;
     }
-    /* Target the 'Success' variant specifically */
-    section[data-testid="stSidebar"] div[data-testid="stAlert"][data-variant="success"] {
-        background-color: #0D1117 !important;
-        border-left: 5px solid #3399FF !important; /* Blue Stripe */
-    }
+    
     /* Force the Icon Blue */
     section[data-testid="stSidebar"] div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
