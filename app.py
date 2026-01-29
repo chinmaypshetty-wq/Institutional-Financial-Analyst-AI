@@ -23,7 +23,7 @@ st.markdown("""
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. BUTTONS - FORCE ELECTRIC BLUE */
+    /* 2. BUTTONS - FORCE ELECTRIC BLUE (Confirmed Working) */
     button {
         background-color: #3399FF !important;
         border: 1px solid #3399FF !important;
@@ -40,36 +40,35 @@ st.markdown("""
         background-color: #1A528A !important;
     }
 
-    /* 3. INPUT BOX - KILL THE RED GLOW */
-    /* Normal State */
-    div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+    /* 3. INPUT BOX - NUCLEAR FIX FOR RED BORDER */
+    /* We target the specific child div that holds the red border */
+    div[data-testid="stTextInput"] > div > div {
+        border-color: #30363D !important;
         background-color: #0D1117 !important;
-        border: 1px solid #30363D !important;
-        border-radius: 4px !important;
     }
-    /* FOCUS STATE - The "Nuclear" Fix for Red Glow */
-    div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
-        border: 1px solid #3399FF !important;
-        box-shadow: 0 0 0 1px #3399FF !important; /* This kills the Red Shadow */
+    /* This specific selector targets the focus state to KILL the red glow */
+    div[data-testid="stTextInput"] > div > div:focus-within {
+        border-color: #3399FF !important;
+        box-shadow: 0 0 0 1px #3399FF !important; 
     }
-    /* Text Color & Cursor */
+    /* Force text color */
     div[data-testid="stTextInput"] input {
         color: #E6EDF3 !important;
-        caret-color: #3399FF !important; /* Blue Cursor */
     }
 
-    /* 4. ALERTS - TURN GREEN BOXES INTO DARK TERMINAL BOXES */
+    /* 4. ALERTS - TURN GREEN BOXES DARK */
+    /* Target the container of the "System Online" and "Target" messages */
     div[data-testid="stAlert"] {
-        background-color: #0D1117 !important; /* Hides the Green Background */
+        background-color: #0D1117 !important; /* Overrides Green Background */
         border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
     }
-    /* The specific "Success" variant -> Blue Border Left */
+    /* Target the success variant specifically */
     div[data-testid="stAlert"][data-variant="success"] {
-        border-left: 5px solid #3399FF !important;
-        background-color: #0D1117 !important; /* Double-check to kill green */
+        background-color: #0D1117 !important;
+        border-left: 4px solid #3399FF !important; /* Blue stripe instead of green box */
     }
-    /* The Icon inside */
+    /* Force the Checkmark Icon to be Blue */
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
@@ -88,7 +87,7 @@ st.markdown("""
     div[data-testid="stMetricLabel"] {
         color: #8B949E !important;
     }
-
+    
     /* 6. SIDEBAR */
     section[data-testid="stSidebar"] {
         background-color: #010409 !important;
