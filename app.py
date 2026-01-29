@@ -17,7 +17,59 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-div[data-testid="stMetricValue"] { font-size: 1.2rem; }
+    /* 1. Main Background & Fonts */
+    .stApp {
+        background-color: #0E1117;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    
+    /* 2. Professional "Data Card" Style for Metrics */
+    div[data-testid="stMetric"] {
+        background-color: #1C2128; /* Dark Card Background */
+        border: 1px solid #30363D; /* Subtle Border */
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        text-align: center;
+    }
+    
+    /* Metric Labels (e.g. "PEG Ratio") */
+    div[data-testid="stMetricLabel"] {
+        color: #8B949E; /* Muted Grey */
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* Metric Values (e.g. "20.9") */
+    div[data-testid="stMetricValue"] {
+        color: #3399FF; /* Institutional Electric Blue */
+        font-size: 1.6rem !important;
+        font-weight: 700;
+    }
+
+    /* 3. "Run Analysis" Button Styling */
+    div.stButton > button {
+        background: linear-gradient(135deg, #238636 0%, #2EA043 100%); /* Professional Green Gradient */
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 6px;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(35, 134, 54, 0.4);
+    }
+
+    /* 4. Sidebar Polish */
+    [data-testid="stSidebar"] {
+        background-color: #010409;
+        border-right: 1px solid #30363D;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -371,8 +423,12 @@ if submit_btn:
                         
                         # 2. CHART (Visual Superiority)
                         if data.get('chart_data') is not None:
-                            chart = alt.Chart(data['chart_data']).mark_line(color='#2ecc71').encode(
-                                x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title="Date", labelAngle=-45)),
+                            chart = alt.Chart(data['chart_data']).mark_line(
+                                color='#3399FF',  
+                                strokeWidth=2     
+                            ).encode(
+                                x=alt.X('Date:T', 
+                                        axis=alt.Axis(format='%b %Y', title="Date", labelAngle=-45, grid=False)),
                                 y=alt.Y('Close:Q', 
                                         axis=alt.Axis(title=f"Price ({data.get('currency', 'USD')})", format=",.2f"),
                                         scale=alt.Scale(zero=False)),
@@ -381,7 +437,7 @@ if submit_btn:
                                     alt.Tooltip('Close:Q', format=",.2f"),
                                     alt.Tooltip('Volume:Q', format=",.0f")
                                 ]
-                            ).properties(height=350)
+                            ).properties(height=400).configure_view(strokeWidth=0) 
                             st.altair_chart(chart, use_container_width=True)
 
                         # 3. AI ANALYSIS
