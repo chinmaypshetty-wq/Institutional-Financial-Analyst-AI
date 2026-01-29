@@ -19,33 +19,52 @@ st.set_page_config(page_title="Institutional AI Analyst", page_icon=None, layout
 # 2. CYBERPUNK GOLD STYLING
 st.markdown("""
 <style>
-    /* 1. DEEP SPACE BACKGROUND */
+    /* 1. MAIN BACKGROUND: Deep Professional Black/Blue */
     .stApp {
-        background: radial-gradient(circle at top left, #1B2838 0%, #0E1117 100%);
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background: radial-gradient(circle at top left, #0f172a 0%, #000000 100%);
     }
 
-    /* 2. GOLDEN GLOW BUTTONS */
+    /* 2. METRIC CARDS: The "Premium" Look */
+    div[data-testid="stMetric"] {
+        background: rgba(20, 20, 20, 0.6); /* Dark Glass */
+        border: 1px solid #4a3b10; /* Dark Gold Border */
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: #D4AF37; /* Brightens slightly on hover */
+    }
+    
+    /* LABEL (e.g. "Price"): Silver/Grey */
+    div[data-testid="stMetricLabel"] {
+        color: #a0a0a0 !important;
+        font-weight: 500;
+    }
+    
+    /* VALUE (e.g. "$150.00"): METALLIC GOLD (Not Yellow) */
+    div[data-testid="stMetricValue"] {
+        color: #D4AF37 !important; /* <--- THE DEEP GOLD COLOR */
+        font-family: 'Segoe UI', sans-serif;
+        font-weight: 600;
+        text-shadow: 0 2px 10px rgba(212, 175, 55, 0.2); /* Subtle glow, not neon */
+    }
+
+    /* 3. BUTTONS: Gradient from Dark Gold to Metallic */
     div.stButton > button {
-        background: linear-gradient(135deg, #D4AF37 0%, #AA8C2C 100%) !important; /* Metallic Gold Gradient */
+        background: linear-gradient(180deg, #D4AF37 0%, #AA8C2C 100%) !important;
         border: 1px solid #8A6E18 !important;
-        color: white !important; /* White text looks cleaner on dark gold */
-        font-weight: 700 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 1px !important;
-        border-radius: 4px !important;
-        box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3) !important;
-        transition: all 0.3s ease !important;
+        color: white !important;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
     div.stButton > button:hover {
-        transform: translateY(-2px);
-        background: linear-gradient(135deg, #E5C566 0%, #B8962E 100%) !important; /* Lighter gold on hover */
-        box-shadow: 0 6px 15px rgba(212, 175, 55, 0.5) !important;
-        color: white !important;
+        filter: brightness(1.1);
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
     }
-    div.stButton > button:active {
-        transform: translateY(1px);
-    }
+</style>
+""", unsafe_allow_html=True)
 
     /* 3. INPUT BOX - NEON BLUE GLOW */
     div[data-baseweb="input"] {
@@ -486,33 +505,35 @@ if submit_btn:
                         
                         # 2. CHART (GOLDEN STYLE)
                         if data.get('chart_data') is not None:
-                            base = alt.Chart(data['chart_data']).encode(
-                                x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title=None, labelAngle=-45, grid=False)),
-                                y=alt.Y('Close:Q', 
-                                        axis=alt.Axis(title=None, format=",.0f"),
-                                        scale=alt.Scale(zero=False))
-                            )
-                            
-                            line = base.mark_line(
-                                color='#FFD700', 
-                                strokeWidth=3
-                            )
-                            
-                            area = base.mark_area(
-                                line={'color':'#FFD700'},
-                                color=alt.Gradient(
-                                    gradient='linear',
-                                    stops=[alt.GradientStop(offset=0, color='#FFD700'),
-                                           alt.GradientStop(offset=1, color='rgba(255, 215, 0, 0)')],
-                                    x1=1, x2=1, y1=1, y2=0
-                                ),
-                                opacity=0.3
-                            )
-                            
-                            final_chart = (area + line).properties(height=400).configure_view(stroke=None)
-                            st.altair_chart(final_chart, use_container_width=True)
-
-                        # 3. AI ANALYSIS
+    # 1. Create the Base Chart
+    base = alt.Chart(data['chart_data']).encode(
+        x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title=None, labelAngle=-45, grid=False)),
+        y=alt.Y('Close:Q', axis=alt.Axis(title=None, format=",.0f"), scale=alt.Scale(zero=False))
+    )
+    
+    # 2. The Line (Metallic Gold)
+    line = base.mark_line(
+        color='#D4AF37',  # <--- Deep Gold Hex Code
+        strokeWidth=3
+    )
+    
+    # 3. The Fade Under the Line (Gradient)
+    area = base.mark_area(
+        line={'color':'#D4AF37'},
+        color=alt.Gradient(
+            gradient='linear',
+            stops=[alt.GradientStop(offset=0, color='#D4AF37'),
+                   alt.GradientStop(offset=1, color='rgba(212, 175, 55, 0)')], # Fades to transparent
+            x1=1, x2=1, y1=1, y2=0
+        ),
+        opacity=0.2 # Kept low for elegance
+    )
+    
+    # 4. Combine and Display
+    final_chart = (area + line).properties(height=400).configure_view(stroke=None)
+    st.altair_chart(final_chart, use_container_width=True)
+    
+# 3. AI ANALYSIS
                         try:
                             model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
                             prompt = f"Analyze {ticker}. Financials: {data['raw_history']}. KPIs: {data['kpis']}. News: {data['news']}"
