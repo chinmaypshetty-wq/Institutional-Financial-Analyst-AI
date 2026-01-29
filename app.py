@@ -17,85 +17,93 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. Main Background & Terminal Font */
+    /* 1. Main Terminal Background */
     .stApp {
-        background-color: #0E1117; /* Deepest Dark */
-        font-family: 'SF Mono', 'Segoe UI', Roboto, sans-serif; /* Tech/Terminal Font */
+        background-color: #0E1117; /* Deep Black-Grey */
+        font-family: 'SF Mono', 'Roboto Mono', monospace; /* Terminal Font */
+    }
+
+    /* 2. OVERRIDE INPUT BOX (Force Blue Border) */
+    /* This targets the exact internal container of the input box */
+    div[data-baseweb="input"] {
+        border: 1px solid #30363D !important;
+        background-color: #0D1117 !important;
+        border-radius: 4px !important;
     }
     
-    /* 2. "Data Card" Style for Metrics (Bloomberg Style) */
+    /* When you click into the box -> GLOWING BLUE */
+    div[data-baseweb="base-input"]:focus-within {
+        border: 2px solid #3399FF !important;
+        box-shadow: 0 0 10px rgba(51, 153, 255, 0.3) !important;
+    }
+    
+    /* Text Color inside Input */
+    input.st-bd {
+        color: #E6EDF3 !important;
+    }
+
+    /* 3. OVERRIDE "RUN ANALYSIS" BUTTON (Force Blue Background) */
+    div.stButton > button {
+        background: linear-gradient(180deg, #3399FF 0%, #297ACC 100%) !important; /* Blue Gradient */
+        color: white !important;
+        border: 1px solid #1F6EB8 !important;
+        padding: 12px 28px !important;
+        font-size: 16px !important;
+        font-weight: bold !important;
+        border-radius: 4px !important;
+        text-transform: uppercase !important;
+        width: 100%;
+        transition: all 0.3s ease !important;
+    }
+    
+    /* Hover Effect */
+    div.stButton > button:hover {
+        background: #3399FF !important;
+        box-shadow: 0 0 15px rgba(51, 153, 255, 0.6) !important; /* Blue Glow */
+        border-color: #80C2FF !important;
+    }
+    
+    /* Active/Click Effect */
+    div.stButton > button:active {
+        background: #1C548C !important;
+    }
+
+    /* 4. METRIC CARDS (Bloomberg Style) */
     div[data-testid="stMetric"] {
-        background-color: #161B22; /* Darker Card */
-        border: 1px solid #30363D;
-        padding: 15px;
-        border-radius: 6px;
-        text-align: center;
-        transition: border-color 0.3s;
-    }
-    div[data-testid="stMetric"]:hover {
-        border-color: #3399FF; /* Blue Glow on Hover */
-    }
-    div[data-testid="stMetricLabel"] {
-        color: #8B949E;
-        font-size: 0.8rem;
-        letter-spacing: 1px;
+        background-color: #161B22 !important;
+        border: 1px solid #30363D !important;
+        padding: 10px !important;
+        border-radius: 6px !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #3399FF !important; /* Electric Blue Text */
-        font-size: 1.8rem !important;
-        font-weight: 700;
+        color: #3399FF !important; /* Blue Numbers */
+        font-size: 28px !important;
+    }
+    div[data-testid="stMetricLabel"] {
+        color: #8B949E !important;
     }
 
-    /* 3. INPUT BOX STYLING (Fixing the Red Border) */
-    div[data-baseweb="input"] {
+    /* 5. SUCCESS/ERROR MESSAGES (Terminal Style) */
+    /* The Green Box -> Dark Blue Terminal Box */
+    div[data-testid="stAlert"][data-variant="success"] {
         background-color: #0D1117 !important;
         border: 1px solid #30363D !important;
-        border-radius: 4px !important;
-        color: white !important;
-    }
-    /* Blue Focus Border instead of Red */
-    div[data-baseweb="base-input"]:focus-within {
-        border: 1px solid #3399FF !important;
-        box-shadow: 0 0 0 1px #3399FF !important;
-    }
-
-    /* 4. BUTTON STYLING (Fixing the Red Button) */
-    div.stButton > button {
-        background: #3399FF !important; /* Electric Blue Background */
-        color: white !important;
-        border: none !important;
-        padding: 10px 24px;
-        font-weight: 600;
-        border-radius: 4px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        transition: all 0.2s;
-    }
-    div.stButton > button:hover {
-        background: #2B80D6 !important; /* Darker Blue on Hover */
-        box-shadow: 0 4px 12px rgba(51, 153, 255, 0.3);
-        transform: translateY(-1px);
-    }
-    div.stButton > button:active {
-        transform: translateY(1px);
-    }
-
-    /* 5. SUCCESS BOX STYLING (Fixing the Green Box) */
-    div[data-testid="stNotification"] {
-        background-color: #161B22 !important;
-        border: 1px solid #3399FF !important; /* Blue Border */
+        border-left: 5px solid #3399FF !important; /* Blue Left Stripe */
         color: #E6EDF3 !important;
-        border-radius: 4px;
     }
-    /* Icon color inside success box */
-    div[data-testid="stNotification"] svg {
-        fill: #3399FF !important;
+    
+    /* The Red Box -> Dark Red Terminal Box */
+    div[data-testid="stAlert"][data-variant="error"] {
+        background-color: #0D1117 !important;
+        border: 1px solid #30363D !important;
+        border-left: 5px solid #FF4B4B !important;
+        color: #E6EDF3 !important;
     }
 
-    /* 6. Sidebar Polish */
+    /* 6. SIDEBAR */
     [data-testid="stSidebar"] {
-        background-color: #010409;
-        border-right: 1px solid #30363D;
+        background-color: #010409 !important;
+        border-right: 1px solid #30363D !important;
     }
 </style>
 """, unsafe_allow_html=True)
