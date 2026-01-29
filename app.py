@@ -17,60 +17,62 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. TERMINAL BACKGROUND & FONT */
+    /* 1. MAIN BACKGROUND */
     .stApp {
-        background-color: #0E1117; /* Deep Black */
+        background-color: #0E1117;
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. NUCLEAR INPUT BOX FIX (Kills the Red Border/Glow) */
-    /* Normal State */
-    div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
-        background-color: #0D1117 !important;
-        border: 1px solid #30363D !important;
-        border-radius: 4px !important;
-    }
-    /* FOCUS State (The Red Glow Killer) */
-    div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
-        border: 1px solid #3399FF !important; /* Force Border Blue */
-        box-shadow: 0 0 0 1px #3399FF !important; /* Force Glow Blue */
-    }
-    /* Input Text */
-    div[data-testid="stTextInput"] input {
-        color: #E6EDF3 !important;
-        caret-color: #3399FF !important; /* Blue Typing Cursor */
-    }
-
-    /* 3. BUTTONS (Electric Blue) */
-    div.stButton > button {
+    /* 2. BUTTONS - BRUTE FORCE OVERRIDE */
+    /* We target ALL buttons to ensure we catch the 'Primary' one */
+    button {
         background-color: #3399FF !important;
-        border: 1px solid #3399FF !important;
+        border-color: #3399FF !important;
         color: white !important;
-        font-weight: bold !important;
-        border-radius: 4px !important;
         transition: all 0.2s ease !important;
     }
     div.stButton > button:hover {
         background-color: #2678CC !important;
-        box-shadow: 0 0 12px rgba(51, 153, 255, 0.4) !important;
+        border-color: #2678CC !important;
+        box-shadow: 0 0 10px rgba(51, 153, 255, 0.5) !important;
     }
     div.stButton > button:active {
         background-color: #1A528A !important;
     }
+    /* Kill the specific Red Focus Ring on buttons */
+    div.stButton > button:focus:not(:active) {
+        border-color: #3399FF !important;
+        box-shadow: none !important;
+        color: white !important;
+    }
 
-    /* 4. STATUS ALERTS (Fixing the Green Boxes) */
-    /* Turn "System Online" and "Target" boxes into Dark Blue Terminal Alerts */
+    /* 3. INPUT BOX - KILL THE RED BORDER */
+    /* Normal State */
+    div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+        background-color: #0D1117 !important;
+        border: 1px solid #30363D !important; 
+    }
+    /* FOCUS STATE - This is where the Red happens. We force it Blue. */
+    div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
+        border: 1px solid #3399FF !important;
+        box-shadow: 0 0 0 1px #3399FF !important; /* This overrides the red glow */
+    }
+    /* Text Color */
+    div[data-testid="stTextInput"] input {
+        color: #E6EDF3 !important;
+        caret-color: #3399FF !important; /* Blue Cursor */
+    }
+
+    /* 4. ALERTS - BLUE INSTEAD OF GREEN/RED */
     div[data-testid="stAlert"] {
-        background-color: #0D1117 !important; /* Dark Background */
+        background-color: #0D1117 !important;
         border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
-        border-radius: 4px !important;
     }
-    /* Success Variant (The Green One) -> Now Blue */
+    /* Success (System Online) -> Blue Border */
     div[data-testid="stAlert"][data-variant="success"] {
         border-left: 4px solid #3399FF !important;
     }
-    /* The Icons inside the alerts */
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
@@ -79,8 +81,8 @@ st.markdown("""
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
-        padding: 15px !important;
         border-radius: 6px !important;
+        padding: 15px !important;
     }
     div[data-testid="stMetricValue"] {
         color: #3399FF !important;
@@ -89,7 +91,7 @@ st.markdown("""
     div[data-testid="stMetricLabel"] {
         color: #8B949E !important;
     }
-
+    
     /* 6. SIDEBAR */
     section[data-testid="stSidebar"] {
         background-color: #010409 !important;
