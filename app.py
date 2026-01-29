@@ -13,7 +13,7 @@ import numpy as np
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
-# 1. CONFIGURE PAGE & THEME (NO EMOJIS)
+# 1. CONFIGURE PAGE & THEME
 st.set_page_config(page_title="Institutional AI Analyst", page_icon=None, layout="wide")
 
 # 2. CYBERPUNK GOLD STYLING
@@ -29,7 +29,7 @@ st.markdown("""
     div.stButton > button {
         background: linear-gradient(90deg, #FFD700 0%, #FFA500 100%) !important;
         border: none !important;
-        color: #0E1117 !important; /* Dark text on gold */
+        color: #0E1117 !important;
         font-weight: 800 !important;
         text-transform: uppercase !important;
         letter-spacing: 1px !important;
@@ -102,15 +102,28 @@ st.markdown("""
         font-weight: 700 !important;
         text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
     }
+    
+    /* 6. EXPANDER (NEWS) STYLING */
+    .streamlit-expanderHeader {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        color: white !important;
+        border: 1px solid rgba(51, 153, 255, 0.3) !important;
+        border-radius: 4px !important;
+    }
+    .streamlit-expanderContent {
+        background-color: #0B0E13 !important;
+        color: #B0B0B0 !important;
+        border: 1px solid rgba(51, 153, 255, 0.1) !important;
+    }
 
-    /* 6. TARGET BOX (GREEN GRADIENT) */
+    /* 7. TARGET BOX */
     div[data-testid="stAlert"][data-variant="success"] {
         background: linear-gradient(90deg, #134E5E 0%, #71B280 100%) !important;
         border: none !important;
         color: white !important;
     }
     
-    /* 7. SIDEBAR BACKGROUND */
+    /* 8. SIDEBAR BACKGROUND */
     section[data-testid="stSidebar"] {
         background-color: #0B0E13 !important;
         border-right: 1px solid #1F2937 !important;
@@ -119,7 +132,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. API KEY ROTATION SYSTEM (Secure)
+# 3. API KEY ROTATION SYSTEM
 # ==========================================
 try:
     API_KEYS = st.secrets["gemini"]["api_keys"]
@@ -144,7 +157,7 @@ if not active_key:
     st.stop()
 
 # ==========================================
-# 4. CORE UTILITY: DYNAMIC MODEL FINDER
+# 4. CORE UTILITY
 # ==========================================
 @st.cache_resource
 def get_valid_model_name():
@@ -161,7 +174,6 @@ def get_valid_model_name():
 
 ACTIVE_MODEL_NAME = get_valid_model_name()
 
-# Sidebar Control (Clean - No Emoji)
 with st.sidebar:
     st.title("Controls")
     st.success(f"System Online")
@@ -182,10 +194,10 @@ def get_google_news_rss(query):
         for item in root.findall('./channel/item')[:5]:
             title = item.find('title').text
             pubDate = item.find('pubDate').text
-            headlines.append(f"- {title} ({pubDate})")
-        return "\n".join(headlines) if headlines else "No news found."
+            headlines.append(f"• {title} ({pubDate})")
+        return "\n".join(headlines) if headlines else "No recent news found."
     except:
-        return "News unavailable."
+        return "News feed unavailable."
 
 def check_ticker_live(ticker):
     try:
@@ -234,9 +246,6 @@ def resolve_ticker(user_input):
     except: pass
     return clean_input
 
-# ==========================================
-# 6. MATHEMATICAL ENGINE (Statistical Accuracy)
-# ==========================================
 def find_col(df, candidates):
     for c in candidates:
         matches = [col for col in df.columns if c in col]
@@ -244,10 +253,6 @@ def find_col(df, candidates):
     return None
 
 def safe_cagr(start, end, years):
-    """
-    Calculates Compound Annual Growth Rate with logic for negative baselines.
-    Returns strings for specific turnaround scenarios to aid qualitative analysis.
-    """
     if start is None or end is None or years == 0: return None
     try:
         s, e = float(start), float(end)
@@ -265,7 +270,7 @@ def safe_cagr(start, end, years):
 def get_institutional_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # 1. PRICE DATA
+    # 1. PRICE & CAP
     try:
         current_price = stock.fast_info.last_price
         mcap = stock.fast_info.market_cap
@@ -273,7 +278,7 @@ def get_institutional_data(ticker_symbol):
     except:
         return {"error": f"Could not find live data for '{ticker_symbol}'."}
 
-    # 2. FINANCIAL STATEMENTS
+    # 2. FINANCIALS
     try:
         fin = stock.financials.T
         bal = stock.balance_sheet.T
@@ -283,21 +288,20 @@ def get_institutional_data(ticker_symbol):
     except:
         return {"error": "Financial statements unavailable."}
 
-    # 3. KPI & RATIO CALCULATOR
+    # 3. KPI CALCULATOR
     kpis = {}
     raw_txt = "Financial Data Unavailable."
     
     if not fin.empty:
-        # Identify Columns
         rev_c = find_col(fin, ['Total Revenue', 'Revenue'])
         eps_c = find_col(fin, ['Basic EPS', 'Diluted EPS'])
         ni_c  = find_col(fin, ['Net Income', 'Net Income Common'])
         op_inc_c = find_col(fin, ['Operating Income', 'Operating Profit'])
         
-        # RAW HISTORY FOR AI CONTEXT
-        raw_txt = "### 5-YEAR FINANCIAL HISTORY:\n"
+        raw_txt = "### 7-YEAR FINANCIAL HISTORY (Available Data):\n"
         try:
-            subset = fin.head(5)
+            # We fetch as much as possible, up to 10 rows to cover 7 years
+            subset = fin.head(10)
             for d, row in subset.iterrows():
                 d_str = d.strftime('%Y') if hasattr(d, 'strftime') else str(d)[:4]
                 r = row.get(rev_c, 0)
@@ -306,71 +310,65 @@ def get_institutional_data(ticker_symbol):
                 raw_txt += f"- {d_str}: Revenue {r:,.0f}, Net Income {n:,.0f}, EPS {e:.2f}\n"
         except: pass
 
-        # GROWTH METRICS (CAGR)
+        # GROWTH METRICS (3Y, 5Y, 7Y)
         if rev_c:
             kpis['sales_cagr_3y'] = safe_cagr(fin[rev_c].iloc[3], fin[rev_c].iloc[0], 3) if len(fin) > 3 else "N/A"
             kpis['sales_cagr_5y'] = safe_cagr(fin[rev_c].iloc[5], fin[rev_c].iloc[0], 5) if len(fin) > 5 else "N/A"
+            kpis['sales_cagr_7y'] = safe_cagr(fin[rev_c].iloc[7], fin[rev_c].iloc[0], 7) if len(fin) > 7 else "N/A (Insufficient Data)"
         if eps_c:
             kpis['eps_cagr_3y'] = safe_cagr(fin[eps_c].iloc[3], fin[eps_c].iloc[0], 3) if len(fin) > 3 else "N/A"
             kpis['eps_cagr_5y'] = safe_cagr(fin[eps_c].iloc[5], fin[eps_c].iloc[0], 5) if len(fin) > 5 else "N/A"
-
-        # PROFITABILITY METRICS (Margins) - NEW ADDITION
+            kpis['eps_cagr_7y'] = safe_cagr(fin[eps_c].iloc[7], fin[eps_c].iloc[0], 7) if len(fin) > 7 else "N/A (Insufficient Data)"
+            
         try:
             latest = fin.iloc[0]
             revenue = latest.get(rev_c, 1)
             net_income = latest.get(ni_c, 0)
             op_income = latest.get(op_inc_c, 0)
-            
             kpis['net_margin'] = round((net_income / revenue) * 100, 2)
             kpis['op_margin'] = round((op_income / revenue) * 100, 2)
         except:
             kpis['net_margin'] = "N/A"
             kpis['op_margin'] = "N/A"
 
-    # VALUATION (PEG & PE)
+    # Valuation
     try:
         eps_ttm = fin.iloc[0][eps_c]
         pe = current_price / eps_ttm if eps_ttm > 0 else 0
         g = kpis.get('eps_cagr_3y')
-        
-        # PEG Logic: Only valid if Growth > 0 and PE > 0
         if isinstance(g, (int, float)) and g > 0 and pe > 0:
             kpis['peg'] = round(pe / g, 2)
         else:
             kpis['peg'] = "N/A"
-            
         kpis['pe'] = round(pe, 2)
     except: 
         kpis['peg'], kpis['pe'] = "N/A", "N/A"
 
-    # HEALTH (Debt/Equity & ROE)
+    # Health
     try:
         total_debt = bal.iloc[0][find_col(bal, ['Total Debt'])]
         total_equity = bal.iloc[0][find_col(bal, ['Stockholders Equity'])]
         net_income = fin.iloc[0][ni_c]
-        
         kpis['debt_equity'] = round(total_debt / total_equity, 2)
         kpis['roe'] = round((net_income / total_equity) * 100, 2)
     except:
         kpis['debt_equity'], kpis['roe'] = "N/A", "N/A"
 
-    # QUALITY (FCF & OCF) - NEW ADDITION
+    # Quality (FCF)
     try:
         ocf = cash.iloc[0][find_col(cash, ['Operating Cash Flow', 'Operating'])]
         capex = cash.iloc[0][find_col(cash, ['Capital Expenditure', 'Purchase of PPE'])]
-        
-        # Free Cash Flow = OCF + CapEx (CapEx is usually negative in statements)
-        # We ensure we handle the sign correctly.
         if capex > 0: capex = -capex 
         fcf = ocf + capex
-        
         ni = fin.iloc[0][ni_c]
-        
         kpis['fcf'] = fcf
         kpis['quality_verdict'] = "High Quality" if ocf > ni else "Low Quality (Accruals)"
     except:
         kpis['quality_verdict'] = "Unknown"
         kpis['fcf'] = "N/A"
+        
+    # Check Market Cap > 5000 (Assuming basic units or millions, usually raw is huge)
+    # We will pass the raw mcap to the prompt for evaluation.
 
     # 4. CHART DATA
     chart_data = None
@@ -381,7 +379,7 @@ def get_institutional_data(ticker_symbol):
             chart_data = hist[['Date', 'Close', 'Volume']]
     except: pass
 
-    # TECHNICAL TREND (SMA 200)
+    # Trend
     try:
         sma200 = hist['Close'].rolling(200).mean().iloc[-1]
         kpis['trend'] = "Uptrend (Price > 200 SMA)" if current_price > sma200 else "Downtrend (Price < 200 SMA)"
@@ -399,24 +397,30 @@ def get_institutional_data(ticker_symbol):
     }
 
 # ==========================================
-# 7. SYSTEM PROMPT (STRICT & FACT-BASED)
+# 7. SYSTEM PROMPT (UPDATED WITH USER'S HARD RULES)
 # ==========================================
 sys_instruction = """
 ### ROLE
-You are an Institutional Equity Analyst (CFA Level). Your job is to provide a rigorous, fact-based investment thesis. 
-You DO NOT use emojis. You prioritize data over narrative.
+You are an Institutional Equity Analyst (CFA Level). You enforce a STRICT investment strategy based on specific quantitative thresholds.
 
-### 1. ANALYSIS FRAMEWORK
-* **Growth:** Analyze 3Y and 5Y CAGR for Revenue and EPS. Is growth accelerating or decelerating?
-* **Profitability:** Look at Net Margins and Operating Margins. Are they expanding?
-* **Valuation:** Assess PEG Ratio (Target < 1.0) and P/E relative to growth.
-* **Health:** Check Debt/Equity (< 1.0 preferred) and ROE (> 15% preferred).
-* **Quality:** Compare Operating Cash Flow vs Net Income. (OCF > NI indicates high quality).
+### 1. THE GOLDEN RULES (MANDATORY FILTERS)
+You must evaluate the stock against these EXACT criteria. If a stock fails multiple rules, be skeptical.
+* **EPS Growth:** Must be > 20% for 3-Year, 5-Year, AND 7-Year periods.
+* **Sales Growth:** Must be > 15% for 3-Year, 5-Year, AND 7-Year periods.
+* **PEG Ratio:** Must be < 1.0 (Undervalued).
+* **Debt to Equity:** Must be < 1.0 (Conservative Leverage).
+* **P/E Ratio:** Must be > 0 (Profitable).
+* **Market Cap:** Must be > 5,000 (Significant Size).
 
-### 2. STRICT OUTPUT RULES
-* **NO EMOJIS:** Do not use any emojis in the output.
-* **CITE DATA:** Every claim must be backed by a number from the provided context. (e.g., "Margins expanded because Net Margin is 15%").
-* **VERDICT JUSTIFICATION:** The final rating must be mathematically justified by the KPIs.
+### 2. ADDITIONAL INSTITUTIONAL METRICS
+* **Quality:** Free Cash Flow (FCF) should be positive and OCF > Net Income.
+* **Margins:** Expanding Net and Operating Margins are preferred.
+* **ROE:** Return on Equity > 15% is a strong signal.
+
+### 3. STRICT OUTPUT RULES
+* **NO EMOJIS:** Use professional language only.
+* **CITE DATA:** Explicitly mention the numbers (e.g. "3Y EPS Growth is 25%, passing the >20% threshold").
+* **VERDICT JUSTIFICATION:** Weigh the "Golden Rules". If a stock fails the 7-year growth or PEG < 1 rule, mention it explicitly in the risks.
 
 ### OUTPUT FORMAT
 ## Institutional Verdict: {Ticker}
@@ -424,23 +428,27 @@ You DO NOT use emojis. You prioritize data over narrative.
 **Risk Profile:** [Low | Medium | High]
 
 ### 1. Executive Thesis
-(A professional summary of the investment case, citing specific growth and valuation metrics.)
+(Summary of the case, specifically addressing if it meets the Golden Rules.)
 
-### 2. Quantitative Scorecard
-| Metric | Value | Assessment |
-| :--- | :--- | :--- |
-| **EPS Growth (3Y)** | {val} | [Accretive/Dilutive] |
-| **Revenue Growth (3Y)** | {val} | [Pass/Fail] |
-| **Net Margin** | {val}% | [Efficient/Inefficient] |
-| **PEG Ratio** | {val} | [Undervalued/Overvalued] |
-| **ROE** | {val}% | [Value Creation] |
-| **Debt/Equity** | {val} | [Leverage Status] |
+### 2. Golden Rule Scorecard
+| Metric | Value | Threshold | Verdict |
+| :--- | :--- | :--- | :--- |
+| **EPS Growth (3Y)** | {val} | > 20% | [Pass/Fail] |
+| **EPS Growth (5Y)** | {val} | > 20% | [Pass/Fail] |
+| **EPS Growth (7Y)** | {val} | > 20% | [Pass/Fail/No Data] |
+| **Sales Growth (3Y)** | {val} | > 15% | [Pass/Fail] |
+| **Sales Growth (5Y)** | {val} | > 15% | [Pass/Fail] |
+| **Sales Growth (7Y)** | {val} | > 15% | [Pass/Fail/No Data] |
+| **PEG Ratio** | {val} | < 1.0 | [Pass/Fail] |
+| **Debt/Equity** | {val} | < 1.0 | [Pass/Fail] |
 
-### 3. Key Risks & Bear Case
-(Specific financial risks based on the data provided.)
+### 3. Institutional Quality Check
+* **Margins:** (Net/Operating status)
+* **Cash Flow:** (FCF status)
+* **Trend:** (200 SMA status)
 
-### 4. Technical & Trend Outlook
-(Comment on the long-term trend based on the 200 SMA status provided.)
+### 4. Key Risks
+(Failures in Golden Rules or external news risks.)
 """
 
 # ==========================================
@@ -481,22 +489,15 @@ if submit_btn:
                         m1.metric("Price", f"{data['currency']} {data['price']:,.2f}")
                         m2.metric("PEG Ratio", str(k.get('peg')))
                         m3.metric("ROE", f"{k.get('roe')}%")
-                        m4.metric("Trend", k.get('trend').split('(')[0].strip()) # Clean text
+                        m4.metric("Trend", k.get('trend').split('(')[0].strip())
                         
-                        # 2. CHART (GOLDEN STYLE)
+                        # 2. CHART
                         if data.get('chart_data') is not None:
                             base = alt.Chart(data['chart_data']).encode(
                                 x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title=None, labelAngle=-45, grid=False)),
-                                y=alt.Y('Close:Q', 
-                                        axis=alt.Axis(title=None, format=",.0f"),
-                                        scale=alt.Scale(zero=False))
+                                y=alt.Y('Close:Q', axis=alt.Axis(title=None, format=",.0f"), scale=alt.Scale(zero=False))
                             )
-                            
-                            line = base.mark_line(
-                                color='#FFD700', 
-                                strokeWidth=3
-                            )
-                            
+                            line = base.mark_line(color='#FFD700', strokeWidth=3)
                             area = base.mark_area(
                                 line={'color':'#FFD700'},
                                 color=alt.Gradient(
@@ -507,14 +508,17 @@ if submit_btn:
                                 ),
                                 opacity=0.3
                             )
-                            
                             final_chart = (area + line).properties(height=400).configure_view(stroke=None)
                             st.altair_chart(final_chart, use_container_width=True)
 
-                        # 3. AI ANALYSIS
+                        # 3. NEWS FEED
+                        with st.expander("📰 Recent Headlines (Live Feed)", expanded=False):
+                            st.text(data['news'])
+
+                        # 4. AI ANALYSIS
                         try:
                             model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
-                            prompt = f"Analyze {ticker}. Financials: {data['raw_history']}. KPIs: {data['kpis']}. News: {data['news']}"
+                            prompt = f"Analyze {ticker}. Financials: {data['raw_history']}. KPIs: {data['kpis']}. Market Cap: {data['mcap']}. News: {data['news']}"
                             response = model.generate_content(prompt)
                             st.markdown(response.text)
                         except Exception as e:
