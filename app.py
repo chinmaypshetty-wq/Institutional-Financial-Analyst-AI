@@ -27,7 +27,7 @@ st.markdown("""
 
     /* 2. GOLDEN GLOW BUTTONS */
     div.stButton > button {
-        background: linear-gradient(90deg, #FFD700 0%, #FFA500 100%) !important;
+        background: linear-gradient(135deg, #D4AF37 0%, #AA8C2C 100%) !important;
         border: none !important;
         color: #0E1117 !important; /* Dark text on gold */
         font-weight: 800 !important;
