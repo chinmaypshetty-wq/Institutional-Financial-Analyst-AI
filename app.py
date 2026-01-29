@@ -23,7 +23,7 @@ st.markdown("""
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. BUTTONS - FORCE BLUE */
+    /* 2. BUTTONS - FORCE BLUE (Keep this, it works) */
     button {
         background-color: #3399FF !important;
         border: 1px solid #3399FF !important;
@@ -40,38 +40,40 @@ st.markdown("""
         background-color: #1A528A !important;
     }
 
-    /* 3. INPUT BOX - NUCLEAR FIX FOR RED BORDER */
-    /* Target the internal wrapper that holds the border */
-    div[data-baseweb="base-input"] {
-        background-color: #0D1117 !important;
-        border: 1px solid #30363D !important;
-        border-radius: 4px !important;
+    /* 3. INPUT BOX - THE "NUCLEAR" RED KILLER */
+    /* Target the exact wrapper Streamlit uses for the Red Border */
+    div[data-baseweb="input"] {
+        border-color: #3399FF !important; 
     }
-    /* FOCUS STATE - Force Blue Border & Blue Glow */
+    /* This specific selector kills the Red Glow on Focus */
+    div[data-baseweb="base-input"] {
+        border: 1px solid #30363D !important;
+        background-color: #0D1117 !important;
+    }
     div[data-baseweb="base-input"]:focus-within {
         border: 1px solid #3399FF !important;
-        box-shadow: 0 0 0 1px #3399FF !important;
+        box-shadow: 0 0 0 1px #3399FF !important; /* Forces Blue Glow */
     }
-    /* Text Color */
+    /* Input Text Color */
     div[data-testid="stTextInput"] input {
         color: #E6EDF3 !important;
         caret-color: #3399FF !important;
     }
 
-    /* 4. ALERTS - KILL GREEN BACKGROUND */
-    /* Force "System Online" box to be Dark */
+    /* 4. ALERTS - FORCE DARK BLUE THEME */
+    /* Target the container to kill the Green Background */
     div[data-testid="stAlert"] {
         background-color: #0D1117 !important;
         border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
     }
-    /* Specific override for the 'success' green variant */
+    /* Target the Success Variant */
     div[data-testid="stAlert"][data-variant="success"] {
-        background-color: #0D1117 !important; /* Kills Green Bg */
-        border-left: 4px solid #3399FF !important; /* Blue Stripe */
+        background-color: #0D1117 !important;
+        border-left: 5px solid #3399FF !important;
         color: #E6EDF3 !important;
     }
-    /* Force Icon to be Blue */
+    /* Force the Icon to be Blue */
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
@@ -98,6 +100,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
 # ==========================================
 # 1. API KEY ROTATION SYSTEM (Secure & Auto-Switch)
 # ==========================================
