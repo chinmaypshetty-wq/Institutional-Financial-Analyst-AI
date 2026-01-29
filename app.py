@@ -57,27 +57,36 @@ st.markdown("""
         caret-color: #3399FF !important;
     }
 
-    /* 4. ALERTS - THE FINAL FIX FOR THE GREEN BOX */
-    /* We use 'background' shorthand to override the gradient Streamlit uses */
-    div[data-testid="stAlert"] {
-        background: #0D1117 !important; 
+    /* 4. SIDEBAR ALERT - THE "GREEN KILLER" */
+    /* We target the alert specifically inside the sidebar */
+    section[data-testid="stSidebar"] div[data-testid="stAlert"] {
+        background: #0D1117 !important; /* Overrides the Green Gradient */
         border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
     }
-    
-    /* Specific Target for the 'Success' (Green) Variant */
-    div[data-testid="stAlert"][data-variant="success"] {
-        background: #0D1117 !important; /* NUKE THE GREEN */
-        border-left: 5px solid #3399FF !important; /* Blue Stripe Only */
+    /* Force the Left Border Blue */
+    section[data-testid="stSidebar"] div[data-testid="stAlert"][data-variant="success"] {
+        border-left: 5px solid #3399FF !important;
+    }
+    /* Force the Icon Blue */
+    section[data-testid="stSidebar"] div[data-testid="stAlert"] svg {
+        fill: #3399FF !important;
+    }
+
+    /* 5. MAIN AREA ALERTS */
+    div[data-testid="stAlert"] {
+        background: #0D1117 !important;
+        border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
     }
-    
-    /* Force the Icon to be Blue */
+    div[data-testid="stAlert"][data-variant="success"] {
+        border-left: 5px solid #3399FF !important;
+    }
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
     
-    /* 5. METRIC CARDS */
+    /* 6. METRIC CARDS */
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
@@ -92,7 +101,7 @@ st.markdown("""
         color: #8B949E !important;
     }
 
-    /* 6. SIDEBAR */
+    /* 7. SIDEBAR BACKGROUND */
     section[data-testid="stSidebar"] {
         background-color: #010409 !important;
         border-right: 1px solid #30363D !important;
