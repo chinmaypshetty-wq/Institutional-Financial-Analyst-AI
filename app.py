@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore')
 # 1. CONFIGURE PAGE & THEME (NO EMOJIS)
 st.set_page_config(page_title="Institutional AI Analyst", page_icon=None, layout="wide")
 
-# 2. REFINED INSTITUTIONAL STYLING (METALLIC GOLD)
+# 2. CYBERPUNK GOLD STYLING
 st.markdown("""
 <style>
     /* 1. DEEP SPACE BACKGROUND */
@@ -25,29 +25,28 @@ st.markdown("""
         font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
 
-    /* 2. REFINED METALLIC GOLD BUTTONS (No more neon yellow) */
+    /* 2. GOLDEN GLOW BUTTONS */
     div.stButton > button {
-        background: linear-gradient(135deg, #D4AF37 0%, #AA8C2C 100%) !important; /* Metallic Gold Gradient */
-        border: 1px solid #8A6E18 !important;
-        color: white !important; /* White text looks cleaner on dark gold */
-        font-weight: 700 !important;
+        background: linear-gradient(90deg, #FFD700 0%, #FFA500 100%) !important;
+        border: none !important;
+        color: #0E1117 !important; /* Dark text on gold */
+        font-weight: 800 !important;
         text-transform: uppercase !important;
         letter-spacing: 1px !important;
         border-radius: 4px !important;
-        box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3) !important;
+        box-shadow: 0 4px 15px rgba(255, 165, 0, 0.4) !important;
         transition: all 0.3s ease !important;
     }
     div.stButton > button:hover {
         transform: translateY(-2px);
-        background: linear-gradient(135deg, #E5C566 0%, #B8962E 100%) !important; /* Lighter gold on hover */
-        box-shadow: 0 6px 15px rgba(212, 175, 55, 0.5) !important;
-        color: white !important;
+        box-shadow: 0 6px 20px rgba(255, 165, 0, 0.6) !important;
+        color: black !important;
     }
     div.stButton > button:active {
         transform: translateY(1px);
     }
 
-    /* 3. INPUT BOX - GLASSY BLUE */
+    /* 3. INPUT BOX - NEON BLUE GLOW */
     div[data-baseweb="input"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border: 1px solid rgba(51, 153, 255, 0.3) !important;
@@ -80,31 +79,31 @@ st.markdown("""
         fill: white !important;
     }
 
-    /* 5. METRIC CARDS - REFINED GOLD ACCENTS */
+    /* 5. METRIC CARDS - GLASS & GOLD */
     div[data-testid="stMetric"] {
         background: rgba(255, 255, 255, 0.03) !important;
-        border: 1px solid rgba(212, 175, 55, 0.2) !important; /* Subtle Gold Border */
+        border: 1px solid rgba(255, 215, 0, 0.3) !important;
         border-radius: 6px !important;
         padding: 15px !important;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2) !important;
         transition: all 0.3s ease;
     }
     div[data-testid="stMetric"]:hover {
-        border-color: #D4AF37 !important;
-        box-shadow: 0 0 15px rgba(212, 175, 55, 0.15) !important;
+        border-color: #FFD700 !important;
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.2) !important;
     }
     div[data-testid="stMetricLabel"] {
         color: #B0B0B0 !important;
         font-size: 0.9rem !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #E5C566 !important; /* Soft Metallic Gold Text (Not Neon) */
+        color: #FFD700 !important;
         font-size: 1.8rem !important;
         font-weight: 700 !important;
-        text-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+        text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
     }
 
-    /* 6. TARGET BOX */
+    /* 6. TARGET BOX (GREEN GRADIENT) */
     div[data-testid="stAlert"][data-variant="success"] {
         background: linear-gradient(90deg, #134E5E 0%, #71B280 100%) !important;
         border: none !important;
@@ -162,7 +161,7 @@ def get_valid_model_name():
 
 ACTIVE_MODEL_NAME = get_valid_model_name()
 
-# Sidebar Control
+# Sidebar Control (Clean - No Emoji)
 with st.sidebar:
     st.title("Controls")
     st.success(f"System Online")
@@ -236,7 +235,7 @@ def resolve_ticker(user_input):
     return clean_input
 
 # ==========================================
-# 6. MATHEMATICAL ENGINE (7-YEAR ANALYSIS)
+# 6. MATHEMATICAL ENGINE (Statistical Accuracy)
 # ==========================================
 def find_col(df, candidates):
     for c in candidates:
@@ -245,6 +244,10 @@ def find_col(df, candidates):
     return None
 
 def safe_cagr(start, end, years):
+    """
+    Calculates Compound Annual Growth Rate with logic for negative baselines.
+    Returns strings for specific turnaround scenarios to aid qualitative analysis.
+    """
     if start is None or end is None or years == 0: return None
     try:
         s, e = float(start), float(end)
@@ -262,7 +265,7 @@ def safe_cagr(start, end, years):
 def get_institutional_data(ticker_symbol):
     stock = yf.Ticker(ticker_symbol)
     
-    # 1. PRICE
+    # 1. PRICE DATA
     try:
         current_price = stock.fast_info.last_price
         mcap = stock.fast_info.market_cap
@@ -280,7 +283,7 @@ def get_institutional_data(ticker_symbol):
     except:
         return {"error": "Financial statements unavailable."}
 
-    # 3. KPI CALCULATOR
+    # 3. KPI & RATIO CALCULATOR
     kpis = {}
     raw_txt = "Financial Data Unavailable."
     
@@ -289,11 +292,12 @@ def get_institutional_data(ticker_symbol):
         rev_c = find_col(fin, ['Total Revenue', 'Revenue'])
         eps_c = find_col(fin, ['Basic EPS', 'Diluted EPS'])
         ni_c  = find_col(fin, ['Net Income', 'Net Income Common'])
+        op_inc_c = find_col(fin, ['Operating Income', 'Operating Profit'])
         
-        # RAW HISTORY (7 Years where available)
-        raw_txt = "### FINANCIAL HISTORY (Up to 7 Years):\n"
+        # RAW HISTORY FOR AI CONTEXT
+        raw_txt = "### 5-YEAR FINANCIAL HISTORY:\n"
         try:
-            subset = fin.head(8) # Fetch 8 to calculate 7Y growth
+            subset = fin.head(5)
             for d, row in subset.iterrows():
                 d_str = d.strftime('%Y') if hasattr(d, 'strftime') else str(d)[:4]
                 r = row.get(rev_c, 0)
@@ -302,26 +306,39 @@ def get_institutional_data(ticker_symbol):
                 raw_txt += f"- {d_str}: Revenue {r:,.0f}, Net Income {n:,.0f}, EPS {e:.2f}\n"
         except: pass
 
-        # GROWTH METRICS (3Y, 5Y, 7Y)
+        # GROWTH METRICS (CAGR)
         if rev_c:
             kpis['sales_cagr_3y'] = safe_cagr(fin[rev_c].iloc[3], fin[rev_c].iloc[0], 3) if len(fin) > 3 else "N/A"
             kpis['sales_cagr_5y'] = safe_cagr(fin[rev_c].iloc[5], fin[rev_c].iloc[0], 5) if len(fin) > 5 else "N/A"
-            kpis['sales_cagr_7y'] = safe_cagr(fin[rev_c].iloc[7], fin[rev_c].iloc[0], 7) if len(fin) > 7 else "N/A (Data < 7Y)"
-
         if eps_c:
             kpis['eps_cagr_3y'] = safe_cagr(fin[eps_c].iloc[3], fin[eps_c].iloc[0], 3) if len(fin) > 3 else "N/A"
             kpis['eps_cagr_5y'] = safe_cagr(fin[eps_c].iloc[5], fin[eps_c].iloc[0], 5) if len(fin) > 5 else "N/A"
-            kpis['eps_cagr_7y'] = safe_cagr(fin[eps_c].iloc[7], fin[eps_c].iloc[0], 7) if len(fin) > 7 else "N/A (Data < 7Y)"
+
+        # PROFITABILITY METRICS (Margins) - NEW ADDITION
+        try:
+            latest = fin.iloc[0]
+            revenue = latest.get(rev_c, 1)
+            net_income = latest.get(ni_c, 0)
+            op_income = latest.get(op_inc_c, 0)
+            
+            kpis['net_margin'] = round((net_income / revenue) * 100, 2)
+            kpis['op_margin'] = round((op_income / revenue) * 100, 2)
+        except:
+            kpis['net_margin'] = "N/A"
+            kpis['op_margin'] = "N/A"
 
     # VALUATION (PEG & PE)
     try:
         eps_ttm = fin.iloc[0][eps_c]
         pe = current_price / eps_ttm if eps_ttm > 0 else 0
         g = kpis.get('eps_cagr_3y')
+        
+        # PEG Logic: Only valid if Growth > 0 and PE > 0
         if isinstance(g, (int, float)) and g > 0 and pe > 0:
             kpis['peg'] = round(pe / g, 2)
         else:
             kpis['peg'] = "N/A"
+            
         kpis['pe'] = round(pe, 2)
     except: 
         kpis['peg'], kpis['pe'] = "N/A", "N/A"
@@ -331,10 +348,29 @@ def get_institutional_data(ticker_symbol):
         total_debt = bal.iloc[0][find_col(bal, ['Total Debt'])]
         total_equity = bal.iloc[0][find_col(bal, ['Stockholders Equity'])]
         net_income = fin.iloc[0][ni_c]
+        
         kpis['debt_equity'] = round(total_debt / total_equity, 2)
         kpis['roe'] = round((net_income / total_equity) * 100, 2)
     except:
         kpis['debt_equity'], kpis['roe'] = "N/A", "N/A"
+
+    # QUALITY (FCF & OCF) - NEW ADDITION
+    try:
+        ocf = cash.iloc[0][find_col(cash, ['Operating Cash Flow', 'Operating'])]
+        capex = cash.iloc[0][find_col(cash, ['Capital Expenditure', 'Purchase of PPE'])]
+        
+        # Free Cash Flow = OCF + CapEx (CapEx is usually negative in statements)
+        # We ensure we handle the sign correctly.
+        if capex > 0: capex = -capex 
+        fcf = ocf + capex
+        
+        ni = fin.iloc[0][ni_c]
+        
+        kpis['fcf'] = fcf
+        kpis['quality_verdict'] = "High Quality" if ocf > ni else "Low Quality (Accruals)"
+    except:
+        kpis['quality_verdict'] = "Unknown"
+        kpis['fcf'] = "N/A"
 
     # 4. CHART DATA
     chart_data = None
@@ -345,10 +381,10 @@ def get_institutional_data(ticker_symbol):
             chart_data = hist[['Date', 'Close', 'Volume']]
     except: pass
 
-    # TECHNICAL TREND
+    # TECHNICAL TREND (SMA 200)
     try:
         sma200 = hist['Close'].rolling(200).mean().iloc[-1]
-        kpis['trend'] = "Uptrend" if current_price > sma200 else "Downtrend"
+        kpis['trend'] = "Uptrend (Price > 200 SMA)" if current_price > sma200 else "Downtrend (Price < 200 SMA)"
     except: kpis['trend'] = "Neutral"
 
     return {
@@ -363,26 +399,24 @@ def get_institutional_data(ticker_symbol):
     }
 
 # ==========================================
-# 7. SYSTEM PROMPT (STRICT INSTITUTIONAL CRITERIA)
+# 7. SYSTEM PROMPT (STRICT & FACT-BASED)
 # ==========================================
 sys_instruction = """
 ### ROLE
-You are an Institutional Equity Analyst. You adhere to a STRICT Quantitative Strategy.
-Your Output MUST BE FACT-BASED. No Emojis.
+You are an Institutional Equity Analyst (CFA Level). Your job is to provide a rigorous, fact-based investment thesis. 
+You DO NOT use emojis. You prioritize data over narrative.
 
-### 1. THE MANDATORY CRITERIA
-You must evaluate the stock against these EXACT thresholds:
-1. **EPS Growth:** > 20% for 3-Year, 5-Year, AND 7-Year periods.
-2. **Sales Growth:** > 15% for 3-Year, 5-Year, AND 7-Year periods.
-3. **PEG Ratio:** < 1.0.
-4. **Debt to Equity:** < 1.0.
-5. **P/E Ratio:** > 0.
-6. **Market Cap:** > 5,000 (Currency adjusted).
+### 1. ANALYSIS FRAMEWORK
+* **Growth:** Analyze 3Y and 5Y CAGR for Revenue and EPS. Is growth accelerating or decelerating?
+* **Profitability:** Look at Net Margins and Operating Margins. Are they expanding?
+* **Valuation:** Assess PEG Ratio (Target < 1.0) and P/E relative to growth.
+* **Health:** Check Debt/Equity (< 1.0 preferred) and ROE (> 15% preferred).
+* **Quality:** Compare Operating Cash Flow vs Net Income. (OCF > NI indicates high quality).
 
-### 2. ANALYSIS LOGIC
-* **Strict Pass/Fail:** If 7-Year data is "N/A", state "Insufficient Data" but do not auto-fail if 5-Year is strong.
-* **Turnarounds:** If growth states "TURNAROUND", treat this as a special positive case but note the risk.
-* **Verdict:** Only give a "STRONG BUY" if almost all criteria are met.
+### 2. STRICT OUTPUT RULES
+* **NO EMOJIS:** Do not use any emojis in the output.
+* **CITE DATA:** Every claim must be backed by a number from the provided context. (e.g., "Margins expanded because Net Margin is 15%").
+* **VERDICT JUSTIFICATION:** The final rating must be mathematically justified by the KPIs.
 
 ### OUTPUT FORMAT
 ## Institutional Verdict: {Ticker}
@@ -390,24 +424,23 @@ You must evaluate the stock against these EXACT thresholds:
 **Risk Profile:** [Low | Medium | High]
 
 ### 1. Executive Thesis
-(Summary of the investment case based on the criteria.)
+(A professional summary of the investment case, citing specific growth and valuation metrics.)
 
-### 2. The Golden Rules Scorecard
-| Metric | Value | Threshold | Verdict |
-| :--- | :--- | :--- | :--- |
-| **EPS Growth (3Y)** | {val} | > 20% | [Pass/Fail] |
-| **EPS Growth (5Y)** | {val} | > 20% | [Pass/Fail] |
-| **EPS Growth (7Y)** | {val} | > 20% | [Pass/Fail/No Data] |
-| **Sales Growth (3Y)** | {val} | > 15% | [Pass/Fail] |
-| **Sales Growth (5Y)** | {val} | > 15% | [Pass/Fail] |
-| **Sales Growth (7Y)** | {val} | > 15% | [Pass/Fail/No Data] |
-| **PEG Ratio** | {val} | < 1.0 | [Pass/Fail] |
-| **Debt/Equity** | {val} | < 1.0 | [Pass/Fail] |
+### 2. Quantitative Scorecard
+| Metric | Value | Assessment |
+| :--- | :--- | :--- |
+| **EPS Growth (3Y)** | {val} | [Accretive/Dilutive] |
+| **Revenue Growth (3Y)** | {val} | [Pass/Fail] |
+| **Net Margin** | {val}% | [Efficient/Inefficient] |
+| **PEG Ratio** | {val} | [Undervalued/Overvalued] |
+| **ROE** | {val}% | [Value Creation] |
+| **Debt/Equity** | {val} | [Leverage Status] |
 
-### 3. Institutional Quality & Risks
-* **Market Cap:** {val} (Check > 5000)
-* **Trend:** (200 SMA Status)
-* **Key Risks:** (List specific failures from the scorecard)
+### 3. Key Risks & Bear Case
+(Specific financial risks based on the data provided.)
+
+### 4. Technical & Trend Outlook
+(Comment on the long-term trend based on the 200 SMA status provided.)
 """
 
 # ==========================================
@@ -448,33 +481,40 @@ if submit_btn:
                         m1.metric("Price", f"{data['currency']} {data['price']:,.2f}")
                         m2.metric("PEG Ratio", str(k.get('peg')))
                         m3.metric("ROE", f"{k.get('roe')}%")
-                        m4.metric("Trend", k.get('trend'))
+                        m4.metric("Trend", k.get('trend').split('(')[0].strip()) # Clean text
                         
-                        # 2. CHART (REFINED METALLIC GOLD)
+                        # 2. CHART (GOLDEN STYLE)
                         if data.get('chart_data') is not None:
                             base = alt.Chart(data['chart_data']).encode(
                                 x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title=None, labelAngle=-45, grid=False)),
-                                y=alt.Y('Close:Q', axis=alt.Axis(title=None, format=",.0f"), scale=alt.Scale(zero=False))
+                                y=alt.Y('Close:Q', 
+                                        axis=alt.Axis(title=None, format=",.0f"),
+                                        scale=alt.Scale(zero=False))
                             )
-                            # Swapped #FFD700 (Neon) for #D4AF37 (Metallic)
-                            line = base.mark_line(color='#D4AF37', strokeWidth=3)
+                            
+                            line = base.mark_line(
+                                color='#FFD700', 
+                                strokeWidth=3
+                            )
+                            
                             area = base.mark_area(
-                                line={'color':'#D4AF37'},
+                                line={'color':'#FFD700'},
                                 color=alt.Gradient(
                                     gradient='linear',
-                                    stops=[alt.GradientStop(offset=0, color='#D4AF37'),
-                                           alt.GradientStop(offset=1, color='rgba(212, 175, 55, 0)')],
+                                    stops=[alt.GradientStop(offset=0, color='#FFD700'),
+                                           alt.GradientStop(offset=1, color='rgba(255, 215, 0, 0)')],
                                     x1=1, x2=1, y1=1, y2=0
                                 ),
                                 opacity=0.3
                             )
+                            
                             final_chart = (area + line).properties(height=400).configure_view(stroke=None)
                             st.altair_chart(final_chart, use_container_width=True)
 
                         # 3. AI ANALYSIS
                         try:
                             model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
-                            prompt = f"Analyze {ticker}. Financials: {data['raw_history']}. KPIs: {data['kpis']}. Market Cap: {data['mcap']}. News: {data['news']}"
+                            prompt = f"Analyze {ticker}. Financials: {data['raw_history']}. KPIs: {data['kpis']}. News: {data['news']}"
                             response = model.generate_content(prompt)
                             st.markdown(response.text)
                         except Exception as e:
