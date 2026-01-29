@@ -57,36 +57,27 @@ st.markdown("""
         caret-color: #3399FF !important;
     }
 
-    /* 4. SIDEBAR ALERT - THE "GREEN KILLER" */
-    /* We target the alert specifically inside the sidebar */
+    /* 4. SIDEBAR ALERT - DEEP PENETRATION FIX */
+    /* Target the OUTER box of the sidebar alert */
     section[data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background: #0D1117 !important; /* Overrides the Green Gradient */
+        background-color: #0D1117 !important;
         border: 1px solid #30363D !important;
+    }
+    /* Target the INNER text container to kill the green text */
+    section[data-testid="stSidebar"] div[data-testid="stAlert"] > div {
         color: #E6EDF3 !important;
     }
-    /* Force the Left Border Blue */
+    /* Target the 'Success' variant specifically */
     section[data-testid="stSidebar"] div[data-testid="stAlert"][data-variant="success"] {
-        border-left: 5px solid #3399FF !important;
+        background-color: #0D1117 !important;
+        border-left: 5px solid #3399FF !important; /* Blue Stripe */
     }
     /* Force the Icon Blue */
     section[data-testid="stSidebar"] div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
 
-    /* 5. MAIN AREA ALERTS */
-    div[data-testid="stAlert"] {
-        background: #0D1117 !important;
-        border: 1px solid #30363D !important;
-        color: #E6EDF3 !important;
-    }
-    div[data-testid="stAlert"][data-variant="success"] {
-        border-left: 5px solid #3399FF !important;
-    }
-    div[data-testid="stAlert"] svg {
-        fill: #3399FF !important;
-    }
-    
-    /* 6. METRIC CARDS */
+    /* 5. METRIC CARDS */
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
@@ -101,7 +92,7 @@ st.markdown("""
         color: #8B949E !important;
     }
 
-    /* 7. SIDEBAR BACKGROUND */
+    /* 6. SIDEBAR BACKGROUND */
     section[data-testid="stSidebar"] {
         background-color: #010409 !important;
         border-right: 1px solid #30363D !important;
