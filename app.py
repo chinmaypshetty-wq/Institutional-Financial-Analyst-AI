@@ -28,13 +28,13 @@ st.markdown("""
     /* 2. GOLDEN GLOW BUTTONS */
     div.stButton > button {
         background: linear-gradient(135deg, #D4AF37 0%, #AA8C2C 100%) !important;
-        border: none !important;
-        color: #0E1117 !important; /* Dark text on gold */
-        font-weight: 800 !important;
+        border: 1px solid #8A6E18 !important;
+        color: white !important; /* White text looks cleaner on dark gold */
+        font-weight: 700 !important;
         text-transform: uppercase !important;
         letter-spacing: 1px !important;
         border-radius: 4px !important;
-        box-shadow: 0 4px 15px rgba(255, 165, 0, 0.4) !important;
+        box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3) !important;
         transition: all 0.3s ease !important;
     }
     div.stButton > button:hover {
