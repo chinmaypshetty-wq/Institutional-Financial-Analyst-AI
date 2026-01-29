@@ -464,37 +464,31 @@ if submit_btn:
                         m3.metric("ROE", f"{k.get('roe')}%")
                         m4.metric("Trend", k.get('trend').split('(')[0].strip()) # Clean text
                         
-                        # 2. CHART (GOLDEN STYLE)
+                        # 2. CHART (Deep Gold)
                         if data.get('chart_data') is not None:
-    # 1. Create the Base Chart
-    base = alt.Chart(data['chart_data']).encode(
-        x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title=None, labelAngle=-45, grid=False)),
-        y=alt.Y('Close:Q', axis=alt.Axis(title=None, format=",.0f"), scale=alt.Scale(zero=False))
-    )
-    
-    # 2. The Line (Metallic Gold)
-    line = base.mark_line(
-        color='#D4AF37',  # <--- Deep Gold Hex Code
-        strokeWidth=3
-    )
-    
-    # 3. The Fade Under the Line (Gradient)
-    area = base.mark_area(
-        line={'color':'#D4AF37'},
-        color=alt.Gradient(
-            gradient='linear',
-            stops=[alt.GradientStop(offset=0, color='#D4AF37'),
-                   alt.GradientStop(offset=1, color='rgba(212, 175, 55, 0)')], # Fades to transparent
-            x1=1, x2=1, y1=1, y2=0
-        ),
-        opacity=0.2 # Kept low for elegance
-    )
-    
-    # 4. Combine and Display
-    final_chart = (area + line).properties(height=400).configure_view(stroke=None)
-    st.altair_chart(final_chart, use_container_width=True)
-    
-# 3. AI ANALYSIS
+                            # Base
+                            base = alt.Chart(data['chart_data']).encode(
+                                x=alt.X('Date:T', axis=alt.Axis(format='%b %Y', title="Date", labelAngle=-45)),
+                                y=alt.Y('Close:Q', axis=alt.Axis(title=f"Price ({data.get('currency', 'USD')})", format=",.2f"), scale=alt.Scale(zero=False))
+                            )
+                            # Deep Gold Line
+                            line = base.mark_line(color='#D4AF37', strokeWidth=3)
+                            # Gradient Fade
+                            area = base.mark_area(
+                                line={'color':'#D4AF37'},
+                                color=alt.Gradient(
+                                    gradient='linear',
+                                    stops=[alt.GradientStop(offset=0, color='#D4AF37'),
+                                           alt.GradientStop(offset=1, color='rgba(212, 175, 55, 0)')],
+                                    x1=1, x2=1, y1=1, y2=0
+                                ),
+                                opacity=0.2
+                            )
+                            
+                            final_chart = (area + line).properties(height=400).configure_view(stroke=None)
+                            st.altair_chart(final_chart, use_container_width=True)
+
+                        # 3. AI ANALYSIS
                         try:
                             model = genai.GenerativeModel(ACTIVE_MODEL_NAME, system_instruction=sys_instruction)
                             prompt = f"Analyze {ticker}. Financials: {data['raw_history']}. KPIs: {data['kpis']}. News: {data['news']}"
