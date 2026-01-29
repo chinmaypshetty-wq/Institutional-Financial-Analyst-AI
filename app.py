@@ -23,7 +23,7 @@ st.markdown("""
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. BUTTONS - FORCE BLUE (Keep this, it works) */
+    /* 2. BUTTONS - FORCE BLUE */
     button {
         background-color: #3399FF !important;
         border: 1px solid #3399FF !important;
@@ -40,44 +40,43 @@ st.markdown("""
         background-color: #1A528A !important;
     }
 
-    /* 3. INPUT BOX - THE "NUCLEAR" RED KILLER */
-    /* Target the exact wrapper Streamlit uses for the Red Border */
+    /* 3. INPUT BOX - BLUE BORDER & GLOW */
     div[data-baseweb="input"] {
         border-color: #3399FF !important; 
     }
-    /* This specific selector kills the Red Glow on Focus */
     div[data-baseweb="base-input"] {
         border: 1px solid #30363D !important;
         background-color: #0D1117 !important;
     }
     div[data-baseweb="base-input"]:focus-within {
         border: 1px solid #3399FF !important;
-        box-shadow: 0 0 0 1px #3399FF !important; /* Forces Blue Glow */
+        box-shadow: 0 0 0 1px #3399FF !important;
     }
-    /* Input Text Color */
     div[data-testid="stTextInput"] input {
         color: #E6EDF3 !important;
         caret-color: #3399FF !important;
     }
 
-    /* 4. ALERTS - FORCE DARK BLUE THEME */
-    /* Target the container to kill the Green Background */
+    /* 4. ALERTS - THE FINAL FIX FOR THE GREEN BOX */
+    /* We use 'background' shorthand to override the gradient Streamlit uses */
     div[data-testid="stAlert"] {
-        background-color: #0D1117 !important;
+        background: #0D1117 !important; 
         border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
     }
-    /* Target the Success Variant */
+    
+    /* Specific Target for the 'Success' (Green) Variant */
     div[data-testid="stAlert"][data-variant="success"] {
-        background-color: #0D1117 !important;
-        border-left: 5px solid #3399FF !important;
+        background: #0D1117 !important; /* NUKE THE GREEN */
+        border-left: 5px solid #3399FF !important; /* Blue Stripe Only */
         color: #E6EDF3 !important;
     }
+    
     /* Force the Icon to be Blue */
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
-
+    
     /* 5. METRIC CARDS */
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
