@@ -17,55 +17,65 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. REDEFINE THEME VARIABLES (The Nuclear Option) */
-    :root {
-        --primary-color: #3399FF !important;
-        --background-color: #0E1117 !important;
-        --secondary-background-color: #161B22 !important;
-        --text-color: #E6EDF3 !important;
-        --font: 'SF Mono', 'Roboto Mono', monospace !important;
+    /* 1. TERMINAL BACKGROUND & FONT */
+    .stApp {
+        background-color: #0E1117; /* Deep Black */
+        font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. FORCE BUTTONS TO BE BLUE (Brute Force) */
-    /* Target ALL buttons in the app to ensure the Form Submit gets caught */
+    /* 2. NUCLEAR INPUT BOX FIX (Kills the Red Border/Glow) */
+    /* Normal State */
+    div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+        background-color: #0D1117 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 4px !important;
+    }
+    /* FOCUS State (The Red Glow Killer) */
+    div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
+        border: 1px solid #3399FF !important; /* Force Border Blue */
+        box-shadow: 0 0 0 1px #3399FF !important; /* Force Glow Blue */
+    }
+    /* Input Text */
+    div[data-testid="stTextInput"] input {
+        color: #E6EDF3 !important;
+        caret-color: #3399FF !important; /* Blue Typing Cursor */
+    }
+
+    /* 3. BUTTONS (Electric Blue) */
     div.stButton > button {
         background-color: #3399FF !important;
         border: 1px solid #3399FF !important;
         color: white !important;
         font-weight: bold !important;
-        box-shadow: none !important;
-        transition: all 0.2s ease-in-out !important;
+        border-radius: 4px !important;
+        transition: all 0.2s ease !important;
     }
     div.stButton > button:hover {
         background-color: #2678CC !important;
-        border-color: #2678CC !important;
-        box-shadow: 0 0 15px rgba(51, 153, 255, 0.5) !important;
+        box-shadow: 0 0 12px rgba(51, 153, 255, 0.4) !important;
     }
     div.stButton > button:active {
         background-color: #1A528A !important;
     }
-    /* Specifically target the Form Submit Button to be sure */
-    div[data-testid="stFormSubmitButton"] > button {
-        background-color: #3399FF !important;
-        border-color: #3399FF !important;
-    }
 
-    /* 3. FORCE INPUT BORDERS TO BE BLUE */
-    /* Normal State */
-    div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
-        border-color: #30363D !important;
-        background-color: #0D1117 !important;
-    }
-    /* Focus State (When typing) - The Red comes from here, we kill it. */
-    div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
-        border: 2px solid #3399FF !important;
-        box-shadow: 0 0 10px rgba(51, 153, 255, 0.3) !important;
-    }
-    div[data-testid="stTextInput"] input {
+    /* 4. STATUS ALERTS (Fixing the Green Boxes) */
+    /* Turn "System Online" and "Target" boxes into Dark Blue Terminal Alerts */
+    div[data-testid="stAlert"] {
+        background-color: #0D1117 !important; /* Dark Background */
+        border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
+        border-radius: 4px !important;
+    }
+    /* Success Variant (The Green One) -> Now Blue */
+    div[data-testid="stAlert"][data-variant="success"] {
+        border-left: 4px solid #3399FF !important;
+    }
+    /* The Icons inside the alerts */
+    div[data-testid="stAlert"] svg {
+        fill: #3399FF !important;
     }
 
-    /* 4. METRIC CARDS (Bloomberg Style) */
+    /* 5. METRIC CARDS */
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
@@ -80,20 +90,10 @@ st.markdown("""
         color: #8B949E !important;
     }
 
-    /* 5. SIDEBAR & ALERTS */
+    /* 6. SIDEBAR */
     section[data-testid="stSidebar"] {
         background-color: #010409 !important;
         border-right: 1px solid #30363D !important;
-    }
-    div[data-testid="stAlert"] {
-        background-color: #0D1117 !important;
-        border: 1px solid #30363D !important;
-    }
-    div[data-testid="stAlert"][data-variant="success"] {
-        border-left: 5px solid #3399FF !important;
-    }
-    div[data-testid="stAlert"] svg {
-        fill: #3399FF !important;
     }
 </style>
 """, unsafe_allow_html=True)
