@@ -17,62 +17,88 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. Main Background & Fonts */
+    /* 1. Main Background & Terminal Font */
     .stApp {
-        background-color: #0E1117;
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background-color: #0E1117; /* Deepest Dark */
+        font-family: 'SF Mono', 'Segoe UI', Roboto, sans-serif; /* Tech/Terminal Font */
     }
     
-    /* 2. Professional "Data Card" Style for Metrics */
+    /* 2. "Data Card" Style for Metrics (Bloomberg Style) */
     div[data-testid="stMetric"] {
-        background-color: #1C2128; /* Dark Card Background */
-        border: 1px solid #30363D; /* Subtle Border */
+        background-color: #161B22; /* Darker Card */
+        border: 1px solid #30363D;
         padding: 15px;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        border-radius: 6px;
         text-align: center;
+        transition: border-color 0.3s;
     }
-    
-    /* Metric Labels (e.g. "PEG Ratio") */
+    div[data-testid="stMetric"]:hover {
+        border-color: #3399FF; /* Blue Glow on Hover */
+    }
     div[data-testid="stMetricLabel"] {
-        color: #8B949E; /* Muted Grey */
-        font-size: 0.85rem;
-        font-weight: 500;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        color: #8B949E;
+        font-size: 0.8rem;
+        letter-spacing: 1px;
     }
-    
-    /* Metric Values (e.g. "20.9") */
     div[data-testid="stMetricValue"] {
-        color: #3399FF; /* Institutional Electric Blue */
-        font-size: 1.6rem !important;
+        color: #3399FF !important; /* Electric Blue Text */
+        font-size: 1.8rem !important;
         font-weight: 700;
     }
 
-    /* 3. "Run Analysis" Button Styling */
-    div.stButton > button {
-        background: linear-gradient(135deg, #238636 0%, #2EA043 100%); /* Professional Green Gradient */
-        color: white;
-        border: none;
-        padding: 12px 24px;
-        font-size: 1rem;
-        font-weight: 600;
-        border-radius: 6px;
-        transition: transform 0.2s, box-shadow 0.2s;
+    /* 3. INPUT BOX STYLING (Fixing the Red Border) */
+    div[data-baseweb="input"] {
+        background-color: #0D1117 !important;
+        border: 1px solid #30363D !important;
+        border-radius: 4px !important;
+        color: white !important;
     }
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(35, 134, 54, 0.4);
+    /* Blue Focus Border instead of Red */
+    div[data-baseweb="base-input"]:focus-within {
+        border: 1px solid #3399FF !important;
+        box-shadow: 0 0 0 1px #3399FF !important;
     }
 
-    /* 4. Sidebar Polish */
+    /* 4. BUTTON STYLING (Fixing the Red Button) */
+    div.stButton > button {
+        background: #3399FF !important; /* Electric Blue Background */
+        color: white !important;
+        border: none !important;
+        padding: 10px 24px;
+        font-weight: 600;
+        border-radius: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.2s;
+    }
+    div.stButton > button:hover {
+        background: #2B80D6 !important; /* Darker Blue on Hover */
+        box-shadow: 0 4px 12px rgba(51, 153, 255, 0.3);
+        transform: translateY(-1px);
+    }
+    div.stButton > button:active {
+        transform: translateY(1px);
+    }
+
+    /* 5. SUCCESS BOX STYLING (Fixing the Green Box) */
+    div[data-testid="stNotification"] {
+        background-color: #161B22 !important;
+        border: 1px solid #3399FF !important; /* Blue Border */
+        color: #E6EDF3 !important;
+        border-radius: 4px;
+    }
+    /* Icon color inside success box */
+    div[data-testid="stNotification"] svg {
+        fill: #3399FF !important;
+    }
+
+    /* 6. Sidebar Polish */
     [data-testid="stSidebar"] {
         background-color: #010409;
         border-right: 1px solid #30363D;
     }
 </style>
 """, unsafe_allow_html=True)
-
 # ==========================================
 # 1. API KEY ROTATION SYSTEM (Secure & Auto-Switch)
 # ==========================================
