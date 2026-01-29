@@ -17,43 +17,50 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. TERMINAL BACKGROUND */
-    .stApp {
-        background-color: #0E1117;
-        font-family: 'SF Mono', 'Roboto Mono', monospace;
+    /* 1. REDEFINE THEME VARIABLES (The Nuclear Option) */
+    :root {
+        --primary-color: #3399FF !important;
+        --background-color: #0E1117 !important;
+        --secondary-background-color: #161B22 !important;
+        --text-color: #E6EDF3 !important;
+        --font: 'SF Mono', 'Roboto Mono', monospace !important;
     }
 
-    /* 2. NUCLEAR BUTTON OVERRIDE (Targeting the Primary Button) */
-    div.stButton > button[kind="primary"] {
+    /* 2. FORCE BUTTONS TO BE BLUE (Brute Force) */
+    /* Target ALL buttons in the app to ensure the Form Submit gets caught */
+    div.stButton > button {
         background-color: #3399FF !important;
         border: 1px solid #3399FF !important;
         color: white !important;
         font-weight: bold !important;
-        transition: all 0.2s ease !important;
+        box-shadow: none !important;
+        transition: all 0.2s ease-in-out !important;
     }
-    /* Hover State */
-    div.stButton > button[kind="primary"]:hover {
+    div.stButton > button:hover {
         background-color: #2678CC !important;
         border-color: #2678CC !important;
-        box-shadow: 0 0 12px rgba(51, 153, 255, 0.6) !important;
+        box-shadow: 0 0 15px rgba(51, 153, 255, 0.5) !important;
     }
-    /* Active State */
-    div.stButton > button[kind="primary"]:active {
+    div.stButton > button:active {
         background-color: #1A528A !important;
     }
+    /* Specifically target the Form Submit Button to be sure */
+    div[data-testid="stFormSubmitButton"] > button {
+        background-color: #3399FF !important;
+        border-color: #3399FF !important;
+    }
 
-    /* 3. INPUT BOX (Kill the Red Border) */
+    /* 3. FORCE INPUT BORDERS TO BE BLUE */
     /* Normal State */
     div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
         border-color: #30363D !important;
         background-color: #0D1117 !important;
     }
-    /* Focus State (The moment you click inside) */
+    /* Focus State (When typing) - The Red comes from here, we kill it. */
     div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
-        border-color: #3399FF !important;
-        box-shadow: 0 0 0 1px #3399FF !important; /* Blue Glow */
+        border: 2px solid #3399FF !important;
+        box-shadow: 0 0 10px rgba(51, 153, 255, 0.3) !important;
     }
-    /* Text Color */
     div[data-testid="stTextInput"] input {
         color: #E6EDF3 !important;
     }
@@ -62,6 +69,7 @@ st.markdown("""
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
+        padding: 15px !important;
         border-radius: 6px !important;
     }
     div[data-testid="stMetricValue"] {
@@ -72,23 +80,20 @@ st.markdown("""
         color: #8B949E !important;
     }
 
-    /* 5. SUCCESS/ERROR ALERTS (Terminal Style) */
+    /* 5. SIDEBAR & ALERTS */
+    section[data-testid="stSidebar"] {
+        background-color: #010409 !important;
+        border-right: 1px solid #30363D !important;
+    }
     div[data-testid="stAlert"] {
         background-color: #0D1117 !important;
         border: 1px solid #30363D !important;
-        color: #E6EDF3 !important;
     }
     div[data-testid="stAlert"][data-variant="success"] {
         border-left: 5px solid #3399FF !important;
     }
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
-    }
-
-    /* 6. SIDEBAR */
-    section[data-testid="stSidebar"] {
-        background-color: #010409 !important;
-        border-right: 1px solid #30363D !important;
     }
 </style>
 """, unsafe_allow_html=True)
