@@ -22,17 +22,15 @@ div[data-testid="stMetricValue"] { font-size: 1.2rem; }
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. API KEY ROTATION SYSTEM (Auto-Switch)
+# 1. API KEY ROTATION SYSTEM (Secure & Auto-Switch)
 # ==========================================
-# ------------------------------------------------------------------
-# PASTE YOUR 4 KEYS HERE. The app will try them one by one.
-# ------------------------------------------------------------------
-API_KEYS = [
-    "AIzaSyBwJo3xgSYh6jcliUgqEzXJRe38WLyktrw",  # Key 1
-    "AIzaSyA37SzRqfa9VpgEbVGB2lD1L3Dpe-guOWo",  # Key 2
-    "YOUR_KEY_3_HERE",                           # Key 3 (Optional)
-    "YOUR_KEY_4_HERE"                            # Key 4 (Optional)
-]
+
+try:
+    API_KEYS = st.secrets["gemini"]["api_keys"]
+except Exception:
+    # Fallback for local testing if secrets.toml isn't set up
+    st.error("❌ No API Keys found in Secrets. Please set them up in Streamlit Cloud > Settings > Secrets.")
+    st.stop()
 
 @st.cache_resource
 def configure_valid_key(keys):
@@ -41,13 +39,13 @@ def configure_valid_key(keys):
     This prevents the app from crashing if one key hits a quota limit.
     """
     for key in keys:
-        if "YOUR_KEY" in key: continue # Skip placeholders
         try:
             genai.configure(api_key=key)
             # Test the key by listing models (Lightweight call)
             list(genai.list_models())
             return key
-        except Exception:
+        except Exception as e:
+            print(f"Key failed: {e}") # Log it internally but don't crash
             continue # If key fails, loop to the next one
     return None
 
@@ -55,9 +53,8 @@ def configure_valid_key(keys):
 active_key = configure_valid_key(API_KEYS)
 
 if not active_key:
-    st.error("Critical Error: All API keys failed or quota exceeded. Please add valid keys to the code.")
+    st.error("❌ Critical Error: All API keys failed or quota exceeded. Please generate NEW keys.")
     st.stop()
-
 # ==========================================
 # 2. CORE UTILITY: DYNAMIC MODEL FINDER
 # ==========================================
