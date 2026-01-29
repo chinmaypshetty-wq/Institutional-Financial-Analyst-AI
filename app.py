@@ -27,9 +27,9 @@ st.markdown("""
 
     /* 2. GOLDEN GLOW BUTTONS */
     div.stButton > button {
-        background: linear-gradient(135deg, #D4AF37 0%, #AA8C2C 100%) !important; /* Metallic Gradient */
+        background: linear-gradient(135deg, #D4AF37 0%, #AA8C2C 100%) !important; /* Metallic Gold Gradient */
         border: 1px solid #8A6E18 !important;
-        color: white !important; /* White text is more readable on dark gold */
+        color: white !important; /* White text looks cleaner on dark gold */
         font-weight: 700 !important;
         text-transform: uppercase !important;
         letter-spacing: 1px !important;
@@ -39,7 +39,7 @@ st.markdown("""
     }
     div.stButton > button:hover {
         transform: translateY(-2px);
-        background: linear-gradient(135deg, #E5C566 0%, #B8962E 100%) !important;
+        background: linear-gradient(135deg, #E5C566 0%, #B8962E 100%) !important; /* Lighter gold on hover */
         box-shadow: 0 6px 15px rgba(212, 175, 55, 0.5) !important;
         color: white !important;
     }
