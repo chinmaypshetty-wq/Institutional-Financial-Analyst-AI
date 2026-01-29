@@ -23,7 +23,7 @@ st.markdown("""
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. BUTTONS - FORCE BLUE (Working) */
+    /* 2. BUTTONS - FORCE BLUE */
     button {
         background-color: #3399FF !important;
         border: 1px solid #3399FF !important;
@@ -40,7 +40,7 @@ st.markdown("""
         background-color: #1A528A !important;
     }
 
-    /* 3. INPUT BOX - BLUE BORDER (Working) */
+    /* 3. INPUT BOX - BLUE BORDER */
     div[data-baseweb="input"] {
         border-color: #3399FF !important; 
     }
@@ -57,26 +57,28 @@ st.markdown("""
         caret-color: #3399FF !important;
     }
 
-    /* 4. SIDEBAR ALERT - THE "GRADIENT KILLER" */
-    /* Use 'background' shorthand to kill the image/gradient */
+    /* 4. SIDEBAR ALERT - THE "BLACK HOLE" FIX */
+    /* Target the specific success alert in the sidebar */
     section[data-testid="stSidebar"] div[data-testid="stAlert"] {
-        background: #0D1117 !important; 
+        background-color: #010409 !important; /* Match Sidebar Black */
+        background-image: none !important; /* Kill the gradient */
         border: 1px solid #30363D !important;
+        color: #E6EDF3 !important; /* Force Text White */
     }
     
-    /* Force the specific 'success' variant to be Black/Blue */
-    section[data-testid="stSidebar"] div[data-testid="stAlert"][data-variant="success"] {
-        background: #0D1117 !important; /* Nukes the Green Gradient */
-        border-left: 5px solid #3399FF !important;
+    /* Force the specific 'success' variant to be Black */
+    div[data-testid="stAlert"][data-variant="success"] {
+        background-color: #010409 !important;
+        color: #E6EDF3 !important;
     }
-
-    /* Force ALL text inside the alert to be White (Overrides Green Text) */
-    section[data-testid="stSidebar"] div[data-testid="stAlert"] * {
+    
+    /* Target the internal Markdown container to kill green text */
+    div[data-testid="stAlert"] > div {
         color: #E6EDF3 !important;
     }
     
     /* Force the Icon Blue */
-    section[data-testid="stSidebar"] div[data-testid="stAlert"] svg {
+    div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
 
