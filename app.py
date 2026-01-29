@@ -17,62 +17,59 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. MAIN BACKGROUND */
+    /* 1. TERMINAL BACKGROUND */
     .stApp {
         background-color: #0E1117;
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. BUTTONS - BRUTE FORCE OVERRIDE */
-    /* We target ALL buttons to ensure we catch the 'Primary' one */
+    /* 2. BUTTONS - FORCE ELECTRIC BLUE */
     button {
         background-color: #3399FF !important;
-        border-color: #3399FF !important;
+        border: 1px solid #3399FF !important;
         color: white !important;
+        font-weight: bold !important;
         transition: all 0.2s ease !important;
     }
     div.stButton > button:hover {
         background-color: #2678CC !important;
         border-color: #2678CC !important;
-        box-shadow: 0 0 10px rgba(51, 153, 255, 0.5) !important;
+        box-shadow: 0 0 12px rgba(51, 153, 255, 0.5) !important;
     }
     div.stButton > button:active {
         background-color: #1A528A !important;
     }
-    /* Kill the specific Red Focus Ring on buttons */
-    div.stButton > button:focus:not(:active) {
-        border-color: #3399FF !important;
-        box-shadow: none !important;
-        color: white !important;
-    }
 
-    /* 3. INPUT BOX - KILL THE RED BORDER */
+    /* 3. INPUT BOX - KILL THE RED GLOW */
     /* Normal State */
     div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
         background-color: #0D1117 !important;
-        border: 1px solid #30363D !important; 
+        border: 1px solid #30363D !important;
+        border-radius: 4px !important;
     }
-    /* FOCUS STATE - This is where the Red happens. We force it Blue. */
+    /* FOCUS STATE - The "Nuclear" Fix for Red Glow */
     div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
         border: 1px solid #3399FF !important;
-        box-shadow: 0 0 0 1px #3399FF !important; /* This overrides the red glow */
+        box-shadow: 0 0 0 1px #3399FF !important; /* This kills the Red Shadow */
     }
-    /* Text Color */
+    /* Text Color & Cursor */
     div[data-testid="stTextInput"] input {
         color: #E6EDF3 !important;
         caret-color: #3399FF !important; /* Blue Cursor */
     }
 
-    /* 4. ALERTS - BLUE INSTEAD OF GREEN/RED */
+    /* 4. ALERTS - TURN GREEN BOXES INTO DARK TERMINAL BOXES */
     div[data-testid="stAlert"] {
-        background-color: #0D1117 !important;
+        background-color: #0D1117 !important; /* Hides the Green Background */
         border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
     }
-    /* Success (System Online) -> Blue Border */
+    /* The specific "Success" variant -> Blue Border Left */
     div[data-testid="stAlert"][data-variant="success"] {
-        border-left: 4px solid #3399FF !important;
+        border-left: 5px solid #3399FF !important;
+        background-color: #0D1117 !important; /* Double-check to kill green */
     }
+    /* The Icon inside */
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
@@ -81,8 +78,8 @@ st.markdown("""
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
-        border-radius: 6px !important;
         padding: 15px !important;
+        border-radius: 6px !important;
     }
     div[data-testid="stMetricValue"] {
         color: #3399FF !important;
@@ -91,7 +88,7 @@ st.markdown("""
     div[data-testid="stMetricLabel"] {
         color: #8B949E !important;
     }
-    
+
     /* 6. SIDEBAR */
     section[data-testid="stSidebar"] {
         background-color: #010409 !important;
