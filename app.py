@@ -17,91 +17,85 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. Main Terminal Background */
+    /* 1. FORCE DARK THEME BACKGROUND */
     .stApp {
-        background-color: #0E1117; /* Deep Black-Grey */
-        font-family: 'SF Mono', 'Roboto Mono', monospace; /* Terminal Font */
+        background-color: #0E1117;
+        font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. OVERRIDE INPUT BOX (Force Blue Border) */
-    /* This targets the exact internal container of the input box */
-    div[data-baseweb="input"] {
-        border: 1px solid #30363D !important;
-        background-color: #0D1117 !important;
-        border-radius: 4px !important;
+    /* 2. FORCE "RUN ANALYSIS" BUTTON TO BE BLUE */
+    /* We target the button specifically to kill the Red default */
+    div.stButton > button {
+        background-color: #3399FF !important;
+        color: white !important;
+        border: 1px solid #3399FF !important;
+        font-weight: bold !important;
+        font-size: 16px !important;
+        padding: 0.5rem 1rem !important;
+        border-radius: 6px !important;
+        transition: all 0.2s ease-in-out !important;
     }
-    
-    /* When you click into the box -> GLOWING BLUE */
-    div[data-baseweb="base-input"]:focus-within {
-        border: 2px solid #3399FF !important;
-        box-shadow: 0 0 10px rgba(51, 153, 255, 0.3) !important;
+    /* Button Hover State */
+    div.stButton > button:hover {
+        background-color: #2678CC !important;
+        border-color: #2678CC !important;
+        box-shadow: 0 0 8px rgba(51, 153, 255, 0.5) !important;
     }
-    
-    /* Text Color inside Input */
-    input.st-bd {
+    /* Button Active/Click State */
+    div.stButton > button:active {
+        background-color: #1A528A !important;
         color: #E6EDF3 !important;
     }
 
-    /* 3. OVERRIDE "RUN ANALYSIS" BUTTON (Force Blue Background) */
-    div.stButton > button {
-        background: linear-gradient(180deg, #3399FF 0%, #297ACC 100%) !important; /* Blue Gradient */
-        color: white !important;
-        border: 1px solid #1F6EB8 !important;
-        padding: 12px 28px !important;
-        font-size: 16px !important;
-        font-weight: bold !important;
-        border-radius: 4px !important;
-        text-transform: uppercase !important;
-        width: 100%;
-        transition: all 0.3s ease !important;
+    /* 3. FORCE INPUT BOX TO BE BLUE (Kill the Red Border) */
+    /* Normal State */
+    div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
+        border-color: #30363D !important;
+        background-color: #0D1117 !important;
+        border-radius: 6px !important;
     }
-    
-    /* Hover Effect */
-    div.stButton > button:hover {
-        background: #3399FF !important;
-        box-shadow: 0 0 15px rgba(51, 153, 255, 0.6) !important; /* Blue Glow */
-        border-color: #80C2FF !important;
+    /* Focus/Typing State - This forces the border BLUE instead of Red */
+    div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
+        border-color: #3399FF !important;
+        box-shadow: 0 0 0 1px #3399FF !important;
     }
-    
-    /* Active/Click Effect */
-    div.stButton > button:active {
-        background: #1C548C !important;
+    /* Input Text Color */
+    div[data-testid="stTextInput"] input {
+        color: #E6EDF3 !important;
     }
 
     /* 4. METRIC CARDS (Bloomberg Style) */
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
-        padding: 10px !important;
+        padding: 15px !important;
         border-radius: 6px !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #3399FF !important; /* Blue Numbers */
+        color: #3399FF !important; /* Electric Blue Numbers */
         font-size: 28px !important;
     }
     div[data-testid="stMetricLabel"] {
         color: #8B949E !important;
     }
 
-    /* 5. SUCCESS/ERROR MESSAGES (Terminal Style) */
-    /* The Green Box -> Dark Blue Terminal Box */
-    div[data-testid="stAlert"][data-variant="success"] {
+    /* 5. SUCCESS MESSAGES (Force Blue Theme) */
+    div[data-testid="stAlert"] {
         background-color: #0D1117 !important;
         border: 1px solid #30363D !important;
-        border-left: 5px solid #3399FF !important; /* Blue Left Stripe */
         color: #E6EDF3 !important;
+    }
+    /* The colored stripe on the left */
+    div[data-testid="stAlert"][data-variant="success"] {
+        border-left-color: #3399FF !important;
+    }
+    /* The icon color */
+    div[data-testid="stAlert"] svg {
+        fill: #3399FF !important;
     }
     
-    /* The Red Box -> Dark Red Terminal Box */
-    div[data-testid="stAlert"][data-variant="error"] {
-        background-color: #0D1117 !important;
-        border: 1px solid #30363D !important;
-        border-left: 5px solid #FF4B4B !important;
-        color: #E6EDF3 !important;
-    }
-
-    /* 6. SIDEBAR */
-    [data-testid="stSidebar"] {
+    /* 6. SIDEBAR BACKGROUND */
+    section[data-testid="stSidebar"] {
         background-color: #010409 !important;
         border-right: 1px solid #30363D !important;
     }
