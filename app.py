@@ -16,57 +16,54 @@ warnings.filterwarnings('ignore')
 # 1. CONFIGURE PAGE & THEME (NO EMOJIS)
 st.set_page_config(page_title="Institutional AI Analyst", page_icon=None, layout="wide")
 
-# 2. CYBERPUNK GOLD STYLING
+# 2. DEEP GOLD THEME (Fixed Indentation & Color)
 st.markdown("""
 <style>
-    /* 1. MAIN BACKGROUND: Deep Professional Black/Blue */
+    /* 1. DEEP SPACE BACKGROUND */
     .stApp {
         background: radial-gradient(circle at top left, #0f172a 0%, #000000 100%);
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
 
-    /* 2. METRIC CARDS: The "Premium" Look */
+    /* 2. METRIC CARDS (Deep Gold Text) */
     div[data-testid="stMetric"] {
-        background: rgba(20, 20, 20, 0.6); /* Dark Glass */
-        border: 1px solid #4a3b10; /* Dark Gold Border */
-        border-radius: 8px;
-        padding: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        background: rgba(20, 20, 20, 0.6) !important; /* Dark Glass */
+        border: 1px solid #4a3b10 !important; /* Antique Gold Border */
+        border-radius: 8px !important;
+        padding: 15px !important;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
     }
-    div[data-testid="stMetric"]:hover {
-        border-color: #D4AF37; /* Brightens slightly on hover */
-    }
-    
-    /* LABEL (e.g. "Price"): Silver/Grey */
     div[data-testid="stMetricLabel"] {
-        color: #a0a0a0 !important;
-        font-weight: 500;
+        color: #a0a0a0 !important; /* Silver Label */
+        font-size: 0.9rem !important;
     }
-    
-    /* VALUE (e.g. "$150.00"): METALLIC GOLD (Not Yellow) */
     div[data-testid="stMetricValue"] {
-        color: #D4AF37 !important; /* <--- THE DEEP GOLD COLOR */
-        font-family: 'Segoe UI', sans-serif;
-        font-weight: 600;
-        text-shadow: 0 2px 10px rgba(212, 175, 55, 0.2); /* Subtle glow, not neon */
+        color: #D4AF37 !important; /* <--- DEEP METALLIC GOLD */
+        font-size: 1.6rem !important;
+        font-weight: 700 !important;
+        text-shadow: 0 2px 10px rgba(212, 175, 55, 0.2) !important;
     }
 
-    /* 3. BUTTONS: Gradient from Dark Gold to Metallic */
+    /* 3. BUTTONS (Antique Gold Gradient) */
     div.stButton > button {
         background: linear-gradient(180deg, #D4AF37 0%, #AA8C2C 100%) !important;
         border: 1px solid #8A6E18 !important;
         color: white !important;
-        font-weight: bold;
-        text-transform: uppercase;
-        letter-spacing: 1px;
+        font-weight: bold !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1px !important;
+        border-radius: 4px !important;
+        box-shadow: 0 4px 10px rgba(212, 175, 55, 0.3) !important;
+        transition: all 0.3s ease !important;
     }
     div.stButton > button:hover {
+        transform: translateY(-2px);
         filter: brightness(1.1);
-        box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+        box-shadow: 0 6px 15px rgba(212, 175, 55, 0.4) !important;
+        color: white !important;
     }
-</style>
-""", unsafe_allow_html=True)
 
-    /* 3. INPUT BOX - NEON BLUE GLOW */
+    /* 4. INPUT BOX (Clean Blue Glow) */
     div[data-baseweb="input"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border: 1px solid rgba(51, 153, 255, 0.3) !important;
@@ -81,59 +78,23 @@ st.markdown("""
     }
     div[data-testid="stTextInput"] input {
         color: white !important;
-        font-weight: 500 !important;
     }
 
-    /* 4. SIDEBAR STATUS BOX */
+    /* 5. SIDEBAR STATUS (Blue/Black Gradient) */
     section[data-testid="stSidebar"] div[data-testid="stAlert"] {
         background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%) !important;
         border: none !important;
-        color: white !important;
-        border-radius: 4px !important;
-        box-shadow: 0 4px 10px rgba(75, 108, 183, 0.4) !important;
-    }
-    section[data-testid="stSidebar"] div[data-testid="stAlert"] * {
         color: white !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stAlert"] svg {
         fill: white !important;
     }
 
-    /* 5. METRIC CARDS - GLASS & GOLD */
-    div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.03) !important;
-        border: 1px solid rgba(255, 215, 0, 0.3) !important;
-        border-radius: 6px !important;
-        padding: 15px !important;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2) !important;
-        transition: all 0.3s ease;
-    }
-    div[data-testid="stMetric"]:hover {
-        border-color: #FFD700 !important;
-        box-shadow: 0 0 15px rgba(255, 215, 0, 0.2) !important;
-    }
-    div[data-testid="stMetricLabel"] {
-        color: #B0B0B0 !important;
-        font-size: 0.9rem !important;
-    }
-    div[data-testid="stMetricValue"] {
-        color: #FFD700 !important;
-        font-size: 1.8rem !important;
-        font-weight: 700 !important;
-        text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-    }
-
-    /* 6. TARGET BOX (GREEN GRADIENT) */
+    /* 6. TARGET BOX (Green Gradient) */
     div[data-testid="stAlert"][data-variant="success"] {
         background: linear-gradient(90deg, #134E5E 0%, #71B280 100%) !important;
         border: none !important;
         color: white !important;
-    }
-    
-    /* 7. SIDEBAR BACKGROUND */
-    section[data-testid="stSidebar"] {
-        background-color: #0B0E13 !important;
-        border-right: 1px solid #1F2937 !important;
     }
 </style>
 """, unsafe_allow_html=True)
