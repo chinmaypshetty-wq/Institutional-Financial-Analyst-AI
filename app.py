@@ -17,49 +17,43 @@ st.set_page_config(page_title="Institutional AI Analyst", layout="wide")
 
 st.markdown("""
 <style>
-    /* 1. FORCE DARK THEME BACKGROUND */
+    /* 1. TERMINAL BACKGROUND */
     .stApp {
         background-color: #0E1117;
         font-family: 'SF Mono', 'Roboto Mono', monospace;
     }
 
-    /* 2. FORCE "RUN ANALYSIS" BUTTON TO BE BLUE */
-    /* We target the button specifically to kill the Red default */
-    div.stButton > button {
+    /* 2. NUCLEAR BUTTON OVERRIDE (Targeting the Primary Button) */
+    div.stButton > button[kind="primary"] {
         background-color: #3399FF !important;
-        color: white !important;
         border: 1px solid #3399FF !important;
+        color: white !important;
         font-weight: bold !important;
-        font-size: 16px !important;
-        padding: 0.5rem 1rem !important;
-        border-radius: 6px !important;
-        transition: all 0.2s ease-in-out !important;
+        transition: all 0.2s ease !important;
     }
-    /* Button Hover State */
-    div.stButton > button:hover {
+    /* Hover State */
+    div.stButton > button[kind="primary"]:hover {
         background-color: #2678CC !important;
         border-color: #2678CC !important;
-        box-shadow: 0 0 8px rgba(51, 153, 255, 0.5) !important;
+        box-shadow: 0 0 12px rgba(51, 153, 255, 0.6) !important;
     }
-    /* Button Active/Click State */
-    div.stButton > button:active {
+    /* Active State */
+    div.stButton > button[kind="primary"]:active {
         background-color: #1A528A !important;
-        color: #E6EDF3 !important;
     }
 
-    /* 3. FORCE INPUT BOX TO BE BLUE (Kill the Red Border) */
+    /* 3. INPUT BOX (Kill the Red Border) */
     /* Normal State */
     div[data-testid="stTextInput"] div[data-baseweb="base-input"] {
         border-color: #30363D !important;
         background-color: #0D1117 !important;
-        border-radius: 6px !important;
     }
-    /* Focus/Typing State - This forces the border BLUE instead of Red */
+    /* Focus State (The moment you click inside) */
     div[data-testid="stTextInput"] div[data-baseweb="base-input"]:focus-within {
         border-color: #3399FF !important;
-        box-shadow: 0 0 0 1px #3399FF !important;
+        box-shadow: 0 0 0 1px #3399FF !important; /* Blue Glow */
     }
-    /* Input Text Color */
+    /* Text Color */
     div[data-testid="stTextInput"] input {
         color: #E6EDF3 !important;
     }
@@ -68,33 +62,30 @@ st.markdown("""
     div[data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
-        padding: 15px !important;
         border-radius: 6px !important;
     }
     div[data-testid="stMetricValue"] {
-        color: #3399FF !important; /* Electric Blue Numbers */
+        color: #3399FF !important;
         font-size: 28px !important;
     }
     div[data-testid="stMetricLabel"] {
         color: #8B949E !important;
     }
 
-    /* 5. SUCCESS MESSAGES (Force Blue Theme) */
+    /* 5. SUCCESS/ERROR ALERTS (Terminal Style) */
     div[data-testid="stAlert"] {
         background-color: #0D1117 !important;
         border: 1px solid #30363D !important;
         color: #E6EDF3 !important;
     }
-    /* The colored stripe on the left */
     div[data-testid="stAlert"][data-variant="success"] {
-        border-left-color: #3399FF !important;
+        border-left: 5px solid #3399FF !important;
     }
-    /* The icon color */
     div[data-testid="stAlert"] svg {
         fill: #3399FF !important;
     }
-    
-    /* 6. SIDEBAR BACKGROUND */
+
+    /* 6. SIDEBAR */
     section[data-testid="stSidebar"] {
         background-color: #010409 !important;
         border-right: 1px solid #30363D !important;
