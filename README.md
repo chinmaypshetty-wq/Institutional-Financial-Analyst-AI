@@ -4,6 +4,8 @@ An automated, institutional-grade equity research agent powered by **Google Gemi
 
 It acts as a force multiplier for financial analysts by automating data collection, ratio calculation, and qualitative risk assessment.
 
+Link: https://institutional-financial-analyst-ai-chinmaypshetty.streamlit.app
+
 ## Key Features
 
 * **Global Ticker Resolution:** Smartly identifies companies across exchanges (e.g., "Tata Steel" -> `TATASTEEL.NS`, "CommBank" -> `CBA.AX`).
